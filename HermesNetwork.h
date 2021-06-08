@@ -66,7 +66,9 @@ namespace HermesNetwork
 	int SigmoidActivation;
 	GLint WINT_unifm_no_of_weight;
 	GLint SIGACT_unifm_prev_size;
-
+	GLint SIGACT_unifm_weight_size;
+	GLint SIGACT_unifm_prev_L_TEX;
+	GLint SIGACT_unifm_Layer_weight;
 
 	///////////////////////////////// Functions ////////////////////////////////////////////////
 
@@ -99,10 +101,11 @@ namespace HermesNetwork
 
 	const char* sigmoidActivationShader_code =
 		"#version 330 core													\n"
-		"precision highp float;												\n"
-		"uniform int PreviousLayer_size; \n"
-		"uniform sampler2D PreviousLayer;									\n"
-		"uniform sampler2D LayerWeight;										\n"		
+		"precision highp float;												\n"		
+		"uniform sampler2D PreviousLayer;									\n"		
+		"uniform sampler2D LayerWeight;										\n"
+		"uniform int PreviousLayer_size;									\n"
+		"uniform int Weight_size;											\n"
 		"in vec2 TexCoord;													\n"
 		"in vec4 gl_FragCoord;												\n"
 		"out vec4 FragColor;												\n"		
@@ -112,27 +115,26 @@ namespace HermesNetwork
 		"		return 1.0/(1.0 + exp(-x));									\n"
 		"}																	\n"
 
-		"void main()														\n"
-		"{																	\n"
-		"		FragColor = vec4(0);										\n"
-		//"		int start = int(gl_FragCoord.x) * (no_prevL_neurons + 1);	\n"
-		//"		int end = start + no_prevL_neurons;							\n"
-		//"		float val = 0;												\n"
-		//"		vec4 pxl;													\n"
-		//"		for(int i=0; i< no_prevL_neurons; i++)						\n"
-		//"		{															\n"
-		//"			pxl = texture(PreviousLayer, vec2(i,0));				\n"
-		//"			val += pxl.r;											\n"
-		//"			pxl = texture(LayerWeight, vec2(start + i,0));			\n"
-		//"			val *= pxl.r;											\n"
-		//"		}															\n"
-		//"		pxl = texture(LayerWeight, vec2(end, 0));					\n"
-		//"		val += pxl.r;												\n"
-		//"		FragColor.r = sigmoid(val);									\n"
-		"		FragColor.r = -PreviousLayer_size;\n"
-		"}\0"
+		"void main()																			\n"
+		"{																						\n"
+		"		float wght_start = int(gl_FragCoord.x) * (PreviousLayer_size+1);				\n"
+		"		float bias_loc = 1 + wght_start + PreviousLayer_size;							\n"
+		"		float val = 0;																	\n"
+		"		vec4 pxl;																		\n"
+		"		for(float i = 1; i<= PreviousLayer_size; i++)									\n"
+		"		{																				\n"	
+		"			pxl = texture(PreviousLayer, vec2( i/PreviousLayer_size - 0.1,0));			\n"
+		"			val = pxl.r;																\n"
+		"			pxl = texture(LayerWeight, vec2( (i + wght_start)/Weight_size - 0.1,0));	\n"
+		"			val *= pxl.r;																\n"
+		"			FragColor.r += val;															\n"
+		"		}																				\n"		
+		"		pxl = texture(LayerWeight, vec2(bias_loc/Weight_size - 0.1,0));					\n"
+		"		FragColor.r += pxl.r;															\n"
+		"		FragColor.r = sigmoid(FragColor.r);												\n"
+		"}																						\0"
 		;
-
+	
 	const char* WeightInitShader_code =
 		"#version 330 core																									\n"
 		"precision highp float;																								\n"
@@ -332,7 +334,10 @@ void initNeuralLink()
 	WINT_unifm_no_of_weight = glGetUniformLocation(WeightInit, "no_weight");
 	glUseProgram(SigmoidActivation);
 	SIGACT_unifm_prev_size = glGetUniformLocation(SigmoidActivation, "PreviousLayer_size");
-
+	SIGACT_unifm_weight_size = glGetUniformLocation(SigmoidActivation, "Weight_size");
+	SIGACT_unifm_prev_L_TEX = glGetUniformLocation(SigmoidActivation, "PreviousLayer");
+	SIGACT_unifm_Layer_weight = glGetUniformLocation(SigmoidActivation, "LayerWeight");	
+	
 	glDeleteShader(vertexShader);
 	glDeleteShader(WeightInitfragmentShader);
 	glDeleteShader(sig_ActivationfragmentShader);
@@ -450,17 +455,27 @@ void triggerLayer(NeuralNetwork* Network, int LayerDepth)
 
 
 	/* Run Activation Shader */
+	//SIGACT_unifm_prev_size = glGetUniformLocation(SigmoidActivation, "PreviousLayer_size");
+	//SIGACT_unifm_weight_size = glGetUniformLocation(SigmoidActivation, "Weight_size");
+	//SIGACT_unifm_prev_L_TEX = glGetUniformLocation(SigmoidActivation, "PreviousLayer");
+	//SIGACT_unifm_Layer_weight = glGetUniformLocation(SigmoidActivation, "LayerWeight");
 	glViewport(0, 0, Lyr->no_neuron, 1);
 	glBindFramebuffer(GL_FRAMEBUFFER, Lyr->NeuronsFbo);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, Lyr->prev->NeuronsTex);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, Lyr->WeightTex);
-	glUniform1i(SIGACT_unifm_prev_size, Lyr->no_weight);
-	glUseProgram(HermesNetwork::SigmoidActivation);
+
+	glUseProgram(HermesNetwork::SigmoidActivation);	
+	glUniform1i(SIGACT_unifm_prev_size, Lyr->prev->no_neuron);
+	glUniform1i(SIGACT_unifm_weight_size, Lyr->no_weight);
+	glUniform1i(SIGACT_unifm_prev_L_TEX, 0);
+	glUniform1i(SIGACT_unifm_Layer_weight, 1);
+
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
 	
+	/* unbind textures and fbo */
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -563,9 +578,9 @@ void					HermesNetwork::connectLayer(NeuralNetwork* Network, Layer* prev, Layer*
 
 	/* init next's weights to random value(0.5<->1.5) */	
 	glViewport(0, 0, next->no_weight, 1);
-	glBindFramebuffer(GL_FRAMEBUFFER, next->WeightFbo);
-	glUniform1i(WINT_unifm_no_of_weight, next->no_weight);
+	glBindFramebuffer(GL_FRAMEBUFFER, next->WeightFbo);	
 	glUseProgram(HermesNetwork::WeightInit);
+	glUniform1i(WINT_unifm_no_of_weight, next->no_weight);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
 
@@ -591,8 +606,8 @@ void					HermesNetwork::connectLayer(NeuralNetwork* Network, Layer* prev, Layer*
 	/* init next's weights to random value(0.5<->1.5) */
 	glViewport(0, 0, prev->no_weight, 1);
 	glBindFramebuffer(GL_FRAMEBUFFER, prev->WeightFbo);
-	glUniform1i(WINT_unifm_no_of_weight, prev->no_weight);
 	glUseProgram(HermesNetwork::WeightInit);
+	glUniform1i(WINT_unifm_no_of_weight, prev->no_weight);	
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 	
 	Network->total_weights += prev->no_weight;
