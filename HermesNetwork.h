@@ -18,8 +18,7 @@ void initNeuralLink();
 template <size_t n>	NeuralNetwork*
 NetworkBuilder(int inputSize, int(&HiddenLayers)[n], int OutputSize);
 
-//Creates network with only input and output. Returns a pointer of type- NeuralNetwork
-NeuralNetwork* CreateNetwork(int InputSize, int OutputSize);
+
 
 //Builds network with given input size, hiddenlayer size as array and output size.
 template <typename T = int>
@@ -40,6 +39,7 @@ void SendInputs(NeuralNetwork* Network, float Inputs[]);
 
 //Returns values of every neurons in output layer as array
 float* GetOutputLayerData(NeuralNetwork* Network);
+
 
 
 //HermesNetwork library builds neural network inside GPU and triggers netwrok layers as per command.
@@ -69,19 +69,33 @@ namespace HermesNetwork
 	unsigned int VBO;
 	unsigned int VAO;
 	unsigned int EBO;
+	unsigned int TempTex;
 	int WeightInit;
-	int WeightUpdate;
 	int SigmoidActivation;
+	int WeightUpdate;
 	GLint WINT_unifm_no_of_weight;
+
 	GLint SIGACT_unifm_prev_size;
 	GLint SIGACT_unifm_weight_size;
 	GLint SIGACT_unifm_prev_L_TEX;
 	GLint SIGACT_unifm_Layer_weight;
 
+	GLint WGHTUP_unifm_prev_size;
+	GLint WGHTUP_unifm_out_L_size;
+	GLint WGHTUP_unifm_LearnRT;
+	GLint WGHTUP_unifm_weight_TEX;
+	GLint WGHTUP_unifm_prev_L_TEX;
+	GLint WGHTUP_unifm_neuronOut_TEX;
+	GLint WGHTUP_unifm_actualOut_TEX;
+	
+
 	///////////////////////////////////////////// Functions /////////////////////////////////////////////////////////
 
 	//This function will be called whenever a new layer is created
 	Layer* initLayer(int size, layerType typ);
+
+	//Creates network with only input and output. Returns a pointer of type- NeuralNetwork
+	NeuralNetwork* CreateNetwork(int InputSize, int OutputSize);
 
 	//Connect two layer with weight and initialize weights
 	void connectLayer(NeuralNetwork* Network, Layer* prev, Layer* next);
@@ -94,6 +108,9 @@ namespace HermesNetwork
 
 	//Returns array of data of every neuron from layer at specified depth
 	float* getLayerNeuronsData(NeuralNetwork* Network, int LayerDepth);
+
+	//Train and update weights of the specified Layer
+	void trainLayer(Layer* Lyr, float* tragetOutput, float* LearningRate);
 
 	////////////////////////////////////////////// Shader Codes ////////////////////////////////////////////////////
 	const char* vertexShader_code =
@@ -133,6 +150,8 @@ namespace HermesNetwork
 		"		vec4 pxl;                                                                       \n"
 		"		for(float i = 1; i<= PreviousLayer_size; i++)                                   \n"
 		"		{                                                                               \n"	
+					/* i/PreviousLayer_size - 0.1 might wrap 0-0.1 to last pixel */
+					/* try + 0.1 instead of - 0.1 */
 		"			pxl = texture(PreviousLayer, vec2( i/PreviousLayer_size - 0.1,0));          \n"
 		"			val = pxl.r;                                                                \n"
 		"			pxl = texture(LayerWeight, vec2( (i + wght_start)/Weight_size - 0.1,0));    \n"
@@ -165,22 +184,54 @@ namespace HermesNetwork
 		"		int i = int(gl_FragCoord.x);																				\n"		
 		"		FragColor.r = rand(vec2( (i+TexCoord.x) * sin(no_weight) , (sin(TexCoord.x) * tan(TexCoord.y))/(i+1) ) );	\n"																							
 		"}																													\0"				
-		;																																
-																																		
-	const char* WeightUpdateShader_code =
-		"#version 430 core									\n"
-		"precision highp float;								\n"
-		"in vec2 TexCoord;									\n"
-		"in vec4 gl_FragCoord;								\n"
-		"uniform sampler2D TexBuffer;						\n"
-		"int i = 0;											\n"
-		"void main()										\n"
-		"{													\n"
-		"		i = int(gl_FragCoord.x);					\n"
-		"		x[i] = texture(TexBuffer, vec2(i,0));		\n"
-		"}													\n"
-		;
+		;									
 
+	const char* WeightUpdateShader_code =
+		"#version 330 core\n"
+		"precision highp float;                                                                 \n"
+		"uniform sampler2D Weights;\n"
+		"uniform sampler2D NeuronsOutput;\n"		
+		"uniform sampler2D ActualOutput;\n"
+		"uniform sampler2D PreviousLayer;\n"
+		"uniform int PreviousLayer_size;\n"
+		"uniform float OutputLayer_size;\n"
+		"uniform float LearningRate = 1;\n"
+		"out vec4 FragColor;\n"
+		"in vec2 TexCoord;\n"		
+		"in vec4 gl_FragCoord;\n"
+		"vec4 weight;\n"
+		"int belong_to;\n"
+		"vec4 output;\n"
+		"vec4 A_output;\n"
+		"float NeuronSelect;\n"
+		"vec4 inputFrag;\n"
+
+		"void main()\n"
+		"{\n"
+				//get weight
+		"		weight =  texture(Weights, TexCoord) ;\n"
+				//figure out which output neuron this weight belongs to
+		"		belong_to = int(gl_FragCoord.x / (PreviousLayer_size + 1));\n"				
+				//get that output neuron value
+		"		output = texture(NeuronsOutput, TexCoord);\n"
+				//get actual output neuron value
+		"		A_output = texture(ActualOutput, vec2( belong_to / OutputLayer_size + 0.1 , 0));\n"		
+		
+
+
+				//figure out which input neuron this weight belongs to
+		"		NeuronSelect = mod(gl_FragCoord.x, PreviousLayer_size +1);\n"
+				//get tgat input neuron value
+		"		inputFrag = texture(PreviousLayer, vec2(NeuronSelect / PreviousLayer_size, 0) );\n"
+		"		if(NeuronSelect == PreviousLayer_size + 0.5)\n"
+		"			inputFrag.r = 1.0;\n"					
+				
+				//update weight
+		"		weight.r -= ((output.r - A_output.r) * inputFrag.r) * LearningRate;\n"
+		"		FragColor.r = weight.r;\n"
+		"}\0"
+		;
+																																		
 }
 
 
@@ -256,10 +307,8 @@ void initNeuralLink()
 	int sig_ActivationfragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(sig_ActivationfragmentShader, 1, &sigmoidActivationShader_code, NULL);
 
-
-
 	int WeightUpdatefragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(WeightUpdatefragmentShader, 1, &WeightInitShader_code, NULL);
+	glShaderSource(WeightUpdatefragmentShader, 1, &WeightUpdateShader_code, NULL);
 
 	glCompileShader(vertexShader);
 	glCompileShader(WeightInitfragmentShader);
@@ -285,23 +334,20 @@ void initNeuralLink()
 		glGetShaderInfoLog(WeightUpdatefragmentShader, 512, NULL, infoLog);
 
 
-
 	WeightInit = glCreateProgram();
 		glAttachShader(WeightInit, vertexShader);
 		glAttachShader(WeightInit, WeightInitfragmentShader);
 	glLinkProgram(WeightInit);
-
-	WeightUpdate = glCreateProgram();
-		glAttachShader(WeightInit, vertexShader);
-		glAttachShader(WeightInit, WeightInitfragmentShader);
-	glLinkProgram(WeightUpdate);
 
 	SigmoidActivation = glCreateProgram();
 		glAttachShader(SigmoidActivation, vertexShader);
 		glAttachShader(SigmoidActivation, sig_ActivationfragmentShader);
 	glLinkProgram(SigmoidActivation);
 
-
+	WeightUpdate = glCreateProgram();
+		glAttachShader(WeightUpdate, vertexShader);
+		glAttachShader(WeightUpdate, WeightUpdatefragmentShader);
+	glLinkProgram(WeightUpdate);
 
 	/* Create Drawing Polygon in VBO */	
 	float vertices[] = {
@@ -338,6 +384,16 @@ void initNeuralLink()
 	glEnableVertexAttribArray(2);
 
 
+	/* Initialize Temporary Texture for misc operations */
+	glGenTextures(1, &TempTex);
+	glBindTexture(GL_TEXTURE_2D, TempTex);
+	/*glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, newL->no_neuron, 1, 0, GL_RGB, GL_FLOAT, NULL);*/
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
 
 	/* Get all uniform locations */
 	glUseProgram(WeightInit);
@@ -347,57 +403,19 @@ void initNeuralLink()
 	SIGACT_unifm_weight_size = glGetUniformLocation(SigmoidActivation, "Weight_size");
 	SIGACT_unifm_prev_L_TEX = glGetUniformLocation(SigmoidActivation, "PreviousLayer");
 	SIGACT_unifm_Layer_weight = glGetUniformLocation(SigmoidActivation, "LayerWeight");	
+	glUseProgram(WeightUpdate);
+	WGHTUP_unifm_prev_size = glGetUniformLocation(WeightUpdate, "PreviousLayer_size");
+	WGHTUP_unifm_out_L_size = glGetUniformLocation(WeightUpdate, "OutputLayer_size");
+	WGHTUP_unifm_LearnRT = glGetUniformLocation(WeightUpdate, "LearningRate");
+	WGHTUP_unifm_weight_TEX = glGetUniformLocation(WeightUpdate, "Weights");
+	WGHTUP_unifm_neuronOut_TEX = glGetUniformLocation(WeightUpdate, "NeuronsOutput");
+	WGHTUP_unifm_actualOut_TEX = glGetUniformLocation(WeightUpdate, "ActualOutput"); 
+	WGHTUP_unifm_prev_L_TEX = glGetUniformLocation(WeightUpdate, "PreviousLayer");
 	
 	glDeleteShader(vertexShader);
 	glDeleteShader(WeightInitfragmentShader);
 	glDeleteShader(sig_ActivationfragmentShader);
-}
-
-
-//Creates network with only input and output. Returns a pointer of type- NeuralNetwork
-NeuralNetwork* CreateNetwork(int InputSize, int OutputSize)
-{
-	using namespace HermesNetwork;
-
-	/* build input Layer structure */
-	Layer* inp = initLayer(InputSize, inputL);
-
-	/* build output Layer structure */
-	Layer* op = initLayer(OutputSize, outputL);
-
-
-	/* build NeuralNetowkr structure */
-	NeuralNetwork* nn = new NeuralNetwork();
-	nn->no_of_input = InputSize;
-	nn->no_of_output = OutputSize;
-	nn->inputLayer = inp;
-	nn->outputLayer = op;
-	connectLayer(nn, inp, op);
-
-	
-
-	/*glGenTextures(1, &nn->inputTex);
-	glBindTexture(GL_TEXTURE_2D, nn->inputTex);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F,InputSize , 1, 0, GL_RGB, GL_FLOAT, 0);*/
-
-	/*
-	* cannot do this as it will initialize weights in netork with only input and output layer initialy
-	* that means it will have to use initWeight_adderLayer() from addLayer()
-	* cant use initWeight_adderLayer() till its problem is solved, go to initWeight_adderLayer() to see problem
-
-	initWeights(nn);
-	*/
-
-	/* Create pbo to retrive neuron data and weight */
-	glGenBuffers(1, &nn->pbo);
-
-
-	glBindTexture(GL_TEXTURE_2D, 0);	
-	return nn;
+	glDeleteShader(WeightUpdatefragmentShader);
 }
 
 
@@ -405,6 +423,7 @@ NeuralNetwork* CreateNetwork(int InputSize, int OutputSize)
 template <typename T = int>
 NeuralNetwork* NetworkBuilder(int InputSize, std::initializer_list<T> HiddenLayers, int OutputSize)
 {
+	using namespace HermesNetwork;
 	NeuralNetwork* nn = CreateNetwork(InputSize, OutputSize);
 	for (int i : HiddenLayers)
 		addLayer(nn, i);
@@ -477,6 +496,8 @@ float* GetOutputLayerData(NeuralNetwork* Network)
 {
 	return HermesNetwork::getLayerNeuronsData(Network, Network->no_layers -1);
 }
+
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -500,9 +521,10 @@ HermesNetwork::Layer*	HermesNetwork::initLayer(int size, layerType typ)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, newL->NeuronsTex, 0);
 	glBindTexture(GL_TEXTURE_2D, 0);
 	// OLD: glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, newL->NeuronsTex, 0);
-	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, newL->NeuronsTex, 0);
+	
 
 	
 	/* create frame buffer for weight */
@@ -516,6 +538,50 @@ HermesNetwork::Layer*	HermesNetwork::initLayer(int size, layerType typ)
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 	return newL;
+}
+
+NeuralNetwork*			HermesNetwork::CreateNetwork(int InputSize, int OutputSize)
+{
+
+	/* build input Layer structure */
+	Layer* inp = initLayer(InputSize, inputL);
+
+	/* build output Layer structure */
+	Layer* op = initLayer(OutputSize, outputL);
+
+
+	/* build NeuralNetowkr structure */
+	NeuralNetwork* nn = new NeuralNetwork();
+	nn->no_of_input = InputSize;
+	nn->no_of_output = OutputSize;
+	nn->inputLayer = inp;
+	nn->outputLayer = op;
+	connectLayer(nn, inp, op);
+
+
+
+	/*glGenTextures(1, &nn->inputTex);
+	glBindTexture(GL_TEXTURE_2D, nn->inputTex);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F,InputSize , 1, 0, GL_RGB, GL_FLOAT, 0);*/
+
+	/*
+	* cannot do this as it will initialize weights in netork with only input and output layer initialy
+	* that means it will have to use initWeight_adderLayer() from addLayer()
+	* cant use initWeight_adderLayer() till its problem is solved, go to initWeight_adderLayer() to see problem
+
+	initWeights(nn);
+	*/
+
+	/* Create pbo to retrive neuron data and weight */
+	glGenBuffers(1, &nn->pbo);
+
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	return nn;
 }
 
 void					HermesNetwork::connectLayer(NeuralNetwork* Network, Layer* prev, Layer* next)
@@ -589,7 +655,7 @@ void					HermesNetwork::connectLayer(NeuralNetwork* Network, Layer* prev, Layer*
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 
-	/* init next's weights to random value(0.5<->1.5) */
+	/* init prev's weights to random value(0.5<->1.5) */
 	glViewport(0, 0, prev->no_weight, 1);
 	glBindFramebuffer(GL_FRAMEBUFFER, prev->WeightFbo);
 	glUseProgram(HermesNetwork::WeightInit);
@@ -659,9 +725,9 @@ void					HermesNetwork::trigger_layer(Layer* Lyr)
 
 	/* unbind textures and fbo */
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, 0);
 	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
@@ -692,6 +758,47 @@ float*					HermesNetwork::getLayerNeuronsData(NeuralNetwork* Network, int LayerD
 
 	//glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 	//return ret;
+}
+
+void					HermesNetwork::trainLayer(Layer* Lyr, float* targetOutput, float* LearningRate)
+{
+	glViewport(0, 0, Lyr->no_weight, 1);
+	
+	//bind fbo and all texture data
+	glBindFramebuffer(GL_FRAMEBUFFER, Lyr->WeightFbo);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, Lyr->WeightTex);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, Lyr->NeuronsTex);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, HermesNetwork::TempTex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, Lyr->no_neuron, 1, 0, GL_RED, GL_FLOAT, targetOutput);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, Lyr->prev->NeuronsTex);
+
+
+	//set uniforms and run shader
+	glUseProgram(HermesNetwork::WeightUpdate);
+	glUniform1i(HermesNetwork::WGHTUP_unifm_prev_size, Lyr->prev->no_neuron);
+	glUniform1f(HermesNetwork::WGHTUP_unifm_out_L_size, Lyr->no_neuron);
+	glUniform1f(HermesNetwork::WGHTUP_unifm_LearnRT, *LearningRate);
+	glUniform1i(HermesNetwork::WGHTUP_unifm_weight_TEX, 0);
+	glUniform1i(HermesNetwork::WGHTUP_unifm_neuronOut_TEX, 1);
+	glUniform1i(HermesNetwork::WGHTUP_unifm_actualOut_TEX, 2);
+	glUniform1i(HermesNetwork::WGHTUP_unifm_prev_L_TEX, 3);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+
+	//unbind fbo and all texture data
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, 0);
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
