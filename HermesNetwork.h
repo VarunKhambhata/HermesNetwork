@@ -181,27 +181,27 @@ namespace HermesNetwork
         ;
 	
 	const char* WeightInitShader_code =
-		"#version 330 core                                                                                                  \n"
-		"precision highp float;                                                                                             \n"
-		"out vec4 FragColor;                                                                                                \n"
-		"in vec2 TexCoord;                                                                                                  \n"
-		"uniform int no_weight;                                                                                             \n"
-//		"uniform sampler2D Texture;                                                                                         \n"
-		"in vec4 FragCoord;                                                                                                 \n"
+        "#version 330 core                                                                                                  \n"
+        "precision highp float;                                                                                             \n"
+        "out vec4 FragColor;                                                                                                \n"
+        "in vec2 TexCoord;                                                                                                  \n"
+        "uniform int no_weight;                                                                                             \n"
+//      "uniform sampler2D Texture;                                                                                         \n"
+        "in vec4 FragCoord;                                                                                                 \n"
 
-		"float rand(vec2 co)                                                                                                \n"
-		"{                                                                                                                  \n"
-		"    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);                                                \n"
-		"}                                                                                                                  \n"
+        "float rand(vec2 co)                                                                                                \n"
+        "{                                                                                                                  \n"
+        "       return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);                                             \n"
+        "}                                                                                                                  \n"
 
-		"void main()                                                                                                        \n"
-		"{                                                                                                                  \n"
-		"		FragColor =  vec4(0);                                                                                       \n"
-		"		int i = int(gl_FragCoord.x);                                                                                \n"
-		"		FragColor.r = rand(vec2( (i+TexCoord.x) * sin(no_weight) , (sin(TexCoord.x) * tan(TexCoord.y))/(i+1) ) );   \n"
-		"}                                                                                                                  \0"
-		;									
-
+        "void main()                                                                                                        \n"
+        "{                                                                                                                  \n"
+        "       FragColor =  vec4(0);                                                                                       \n"
+        "       int i = int(gl_FragCoord.x);                                                                                \n"
+        "       FragColor.r = rand(vec2( (i+TexCoord.x) * sin(no_weight) , (sin(TexCoord.x) * tan(TexCoord.y))/(i+1) ) );   \n"
+        "}                                                                                                                  \0"
+        ;
+	
 	const char* WeightUpdateShader_code =
 		"#version 330 core                                                                          \n"
 		"precision highp float;                                                                     \n"
@@ -222,23 +222,23 @@ namespace HermesNetwork
 		"float NeuronSelect;                                                                        \n"
 		"vec4 inputFrag;                                                                            \n"
 
-		"void main()                                                                                \n"
-		"{                                                                                          \n"
-				//get weight
-		"		weight =  texture(Weights, TexCoord) ;                                              \n"
-				//get that output neuron value
-		"		output = texture(NeuronsOutput, TexCoord);                                          \n"
-				//figure out which input neuron this weight belongs to
-		"		NeuronSelect = mod(gl_FragCoord.x, PreviousLayer_size +1);                          \n"
-				//get that input neuron value
-		"		inputFrag = texture(PreviousLayer, vec2(NeuronSelect / PreviousLayer_size, 0) );    \n"
-		"		if(NeuronSelect == PreviousLayer_size + 0.5)                                        \n"
-		"		    inputFrag.r = 1.0;                                                              \n"
-				//update weight
-        "		weight.r += output.b * inputFrag.r * LearningRate;                                  \n"
-		"		FragColor.r = weight.r;                                                             \n"
-		"}                                                                                          \0"
-		;
+        "void main()                                                                                \n"
+        "{                                                                                          \n"
+                //get weight
+        "       weight =  texture(Weights, TexCoord) ;                                              \n"
+                //get that output neuron value
+        "       output = texture(NeuronsOutput, TexCoord);                                          \n"
+                //figure out which input neuron this weight belongs to
+        "       NeuronSelect = mod(gl_FragCoord.x, PreviousLayer_size +1);                          \n"
+                //get that input neuron value
+        "       inputFrag = texture(PreviousLayer, vec2(NeuronSelect / PreviousLayer_size, 0) );    \n"
+        "       if(NeuronSelect == PreviousLayer_size + 0.5)                                        \n"
+        "           inputFrag.r = 1.0;                                                              \n"
+                //update weight
+        "       weight.r += output.b * inputFrag.r * LearningRate;                                  \n"
+        "       FragColor.r = weight.r;                                                             \n"
+        "}                                                                                          \0"
+        ;
 
 	const char* ErrorGen_code =
         "#version 330 core                                         \n"
