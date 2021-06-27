@@ -1,18 +1,32 @@
 #ifndef __HERMES_NETWORK__
 #define __HERMES_NETWORK__
-#include<initializer_list>
 
+#include<initializer_list>
+#ifdef _WIN32
+    #include<windows.h>
+#endif
+#ifdef __linux__
+    //include linux dependent header for creating window
+#endif
+#ifdef __APPLE__
+    //include macOS dependent header for creating window
+#endif
+#ifdef __ANDROID__
+    //include android dependent header for creating window
+#endif
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////// DECLARATIONS ////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef void (*FunctionPointer)(void);
 
 //Handle to entire network.
 //[Always create a pointer object of it]
 struct NeuralNetwork;
 
 //Setup gl context, compile shaders, create drawing polygon
-void InitNeuralLink();
+void InitNeuralLink(FunctionPointer GL_init_func);
 
 //Builds network with given input size, hiddenlayer size as array and output size.
 template <typename T = int>
@@ -59,7 +73,20 @@ namespace HermesNetwork
 		unsigned int WeightTex = NULL;
 	};
 
-	GLFWwindow* offscreen_context;
+    #ifdef _WIN32
+        HWND offscreen_context;
+        HGLRC GlRenderingContext;
+    #endif
+    #ifdef __linux__
+        //Declare object of linux's window and rendering context
+    #endif
+    #ifdef __APPLE__
+        //Declare object of macOS's window and rendering context
+    #endif
+    #ifdef __ANDROID__
+        //Create object of android's window and rendering context
+    #endif
+
 	unsigned int VBO;
 	unsigned int VAO;
 	unsigned int EBO;
@@ -342,24 +369,49 @@ struct          NeuralNetwork
     GLuint pbo;
 };
 
-void            InitNeuralLink()
+void            InitNeuralLink(FunctionPointer GL_init_func)
 {
 	using namespace HermesNetwork;
 
-	//Create window context
-					//use this when glfw is removed to create window and context
-					/*HWND dummyHWND = ::CreateWindowA("STATIC", "dummy", WS_VISIBLE, 0, 0, 100, 100, NULL, NULL, NULL, NULL);
-					::SetWindowTextA(dummyHWND, "Dummy Window!");*/
-	glfwInit();
-	//glfwWindowHint(GLFW_NO_API, GLFW_TRUE);
-	//glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-	offscreen_context = glfwCreateWindow(50, 50, "", NULL, NULL);
-	glfwMakeContextCurrent(offscreen_context);
-	glViewport(0, 0, 50, 50);
-	glfwSwapBuffers(offscreen_context);
-	glfwPollEvents();
+    //Create window context
+        #ifdef _WIN32
+            HWND offscreen_context = ::CreateWindowA("STATIC", "OpenGL Context Space", 0 , 0, 0, 0, 0, NULL, NULL, NULL, NULL);
+            PIXELFORMATDESCRIPTOR pfd =
+                {
+                    sizeof(PIXELFORMATDESCRIPTOR),1,
+                    PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, PFD_TYPE_RGBA,
+                    32,0,0,0,0,0,0,
+                    0,0,0,0,0,0,
+                    0,24,8,0,
+                    PFD_MAIN_PLANE,0,0, 0, 0
+                };
+            HDC DC = GetDC(offscreen_context);
+            int  letWindowsChooseThisPixelFormat;
+            letWindowsChooseThisPixelFormat = ChoosePixelFormat(DC, &pfd);
+            SetPixelFormat(DC,letWindowsChooseThisPixelFormat, &pfd);
+            GlRenderingContext = wglCreateContext(DC);
+            wglMakeCurrent (DC, GlRenderingContext);
+            //wglDeleteContext(GLRenderingContext);
+        #endif
+        #ifdef __linux__
+            //call linux api to create invisible window
+            //attatch gl viewport
+            //make gl context
+        #endif
+        #ifdef __APPLE__
+            //call macOS api to create invisible window
+            //attatch gl viewport
+            //make gl context
+        #endif
+        #ifdef __ANDROID__
+            //call macOS api to create invisible window
+            //attatch gl viewport
+            //make gl context
+        #endif
 
-	glewInit();
+
+    GL_init_func();
+
 
 	int success;
 	char infoLog[512];
