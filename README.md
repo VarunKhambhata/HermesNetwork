@@ -7,7 +7,7 @@ This library has an API and a Framework.
 ### `HermesNetwork API` 
 > The API part of library consist of publicaly avaliable functions that can be used in main program after including the header file.<br>
 > API functions contains set of instuctions and calls to the HermesNetwork Framework, which provides an abstraction for building a conventional neural network.<br>
-> Below is shown tha content of HermesNetwork API:
+> Below is shown the content of HermesNetwork API:
 
 
 <details>
