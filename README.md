@@ -63,9 +63,9 @@ This library has an API and a Framework.
   
   
 ### `HermesNetwork Framework` 
-> The Framework part of this library is written inside `HermesNetwork::` namespace.
-> It contains functions and objects which allows more detailed operations of the neural network.
-> Functions of this framework are also called from inside of the API functions.
+> The Framework part of this library is written inside `HermesNetwork::` namespace.<br>
+> It contains functions and objects which allows more detailed operations of the neural network.<br>
+> Functions of this framework are also called from inside of the API functions.<br>
 
 <details>
   <summary>Click to view Framework document</summary>
