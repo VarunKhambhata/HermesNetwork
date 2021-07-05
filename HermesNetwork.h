@@ -648,8 +648,13 @@ void            TrainNetwork(NeuralNetwork* Network, float *ActualOutput, float 
         backPropogateError(Lyr);
         Lyr = Lyr->next;
     }
-	
-	trainLayer(Network->outputLayer, &LearningRate);
+	Lyr = Network->inputLayer;
+    for(int i=1;i <Network->no_layers;i++)
+    {
+        Lyr = Lyr->next;
+        trainLayer(Lyr, &LearningRate);
+    }
+
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
