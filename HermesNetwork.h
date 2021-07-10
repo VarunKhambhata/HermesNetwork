@@ -1,7 +1,13 @@
+/*
+ *   #define REMOVE_GRADIENT_DESCENT  before including this header file if you dont want to use gradient descent in training
+*/
+
+
 #ifndef __HERMES_NETWORK__
 #define __HERMES_NETWORK__
 
 #include<initializer_list>
+#include<fstream>
 #ifdef _WIN32
     #include<windows.h>
 #endif
@@ -19,14 +25,13 @@
 //////////////////////////////////////////////////////////////////////// DECLARATIONS ////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef void (*FunctionPointer)(void);
 
 //Handle to entire network.
 //[Always create a pointer object of it]
 struct NeuralNetwork;
 
 //Setup gl context, compile shaders, create drawing polygon
-void InitNeuralLink(FunctionPointer GL_init_func);
+void InitNeuralLink();
 
 //Builds network with given input size, hiddenlayer size as array and output size.
 template <typename T = int>
@@ -49,6 +54,12 @@ float* GetOutputLayerData(NeuralNetwork* Network);
 
 //Generate Error in output neurons, backpropogate errors to previous layers and updates every weight and bias
 void TrainNetwork(NeuralNetwork* Network, float ActualOutput[], float LearningRate = 1.0);
+
+//save network structure,weights and bias in a file.
+void SaveNetwork(NeuralNetwork* Network, char filename[]);
+
+//load saved network from disk and generate a live neural network as per saved data such as weights, bias and no of layers.
+NeuralNetwork* LoadNetwork(char filename[]);
 
 //HermesNetwork library builds neural network inside GPU and triggers network layers as per command.
 //The Library uses OpenGL to access GPUs. It can be run on any dedicated or integrated GPU regardless of GPU vendor's drivers, OS or hardware architecture.
@@ -286,7 +297,9 @@ namespace HermesNetwork
 		"       FragColor = texture(NeuronsOutput, TexCoord);      \n"
 		"       vec4 A_Output = texture(ActualOutput, TexCoord);   \n"
 		"       FragColor.b = A_Output.r - FragColor.r;            \n"
-		"       FragColor.b *= sigmoid_derivative(FragColor.r);    \n"
+#ifndef REMOVE_GRADIENT_DESCENT
+    "       FragColor.b *= sigmoid_derivative(FragColor.r);    \n"
+#endif
 		"}                                                         \0"
 		;
 
@@ -324,7 +337,12 @@ namespace HermesNetwork
 		"       {                                                                                                                        \n"
 		"           nextLayerNeuron = texture(NextLayerOutput, vec2(getCoord(i,OutputLayer_size),0));                                    \n"
 		"           weight = texture(WeightsToNextLayer, vec2(getCoord(i*(OutputLayer_size+1) + int(gl_FragCoord.x),weight_size),0));    \n"
-		"           ERROR += (nextLayerNeuron.b * weight.r) * sigmoid_derivative(nextLayerNeuron.r);                                     \n"
+#ifndef REMOVE_GRADIENT_DESCENT
+        "           ERROR += (nextLayerNeuron.b * weight.r) * sigmoid_derivative(nextLayerNeuron.r);                                     \n"
+#endif
+#ifdef REMOVE_GRADIENT_DESCENT
+        "           ERROR += (nextLayerNeuron.b * weight.r) * (nextLayerNeuron.r);                                                       \n"
+#endif
 		"       }                                                                                                                        \n"
 		"       FragColor.b = ERROR;                                                                                                     \n"
 		"}                                                                                                                               \0"
@@ -369,7 +387,7 @@ struct          NeuralNetwork
     GLuint pbo;
 };
 
-void            InitNeuralLink(FunctionPointer GL_init_func)
+void            InitNeuralLink()
 {
 	using namespace HermesNetwork;
 
@@ -409,8 +427,16 @@ void            InitNeuralLink(FunctionPointer GL_init_func)
             //make gl context
         #endif
 
-
-    GL_init_func();
+    //Init openGl context
+        #ifdef __glew_h__
+            glewInit();
+        #endif
+        #ifdef __glut_h__
+            glutInit(NULL,NULL);
+        #endif
+        #ifdef  __FREEGLUT_H__
+            glutInit(NULL,NULL);
+        #endif
 
 
 	int success;
@@ -655,6 +681,107 @@ void            TrainNetwork(NeuralNetwork* Network, float *ActualOutput, float 
         trainLayer(Lyr, &LearningRate);
     }
 
+}
+
+void            SaveNetwork(NeuralNetwork* Network, char filename[])
+{
+    /*
+     *      FILE STRUCTURE
+     *
+     * -------------------------------------------
+     *  No of Layers | Input Size | Output Size             -int,int,int
+     * -------------------------------------------
+     *  1st Hidden Layer Size | [Array of weights]          -int,[float]
+     * -------------------------------------------
+     *  2nd Hidden Layer Size | [Array of weights]          -int,[float]
+     * -------------------------------------------
+     *      :
+     *      :
+     *  nth Hidden Layer Size | [Array of weights]          -int,[float]
+     * -------------------------------------------
+     *  [Array of weights of Output Layer]                  -[float]
+     * -------------------------------------------
+     */
+
+    std::fstream file;
+    file.open(filename,std::ios::out|std::ios::binary);
+    file.write((char*)&Network->no_layers, sizeof(int));
+    file.write((char*)&Network->no_of_input, sizeof(int));
+    file.write((char*)&Network->no_of_output, sizeof(int));
+
+    HermesNetwork::Layer *L = Network->inputLayer->next;
+    for(int i=1; i < Network->no_layers-1 ; i++,L = L->next)
+    {
+        file.write((char*)&L->no_neuron, sizeof(int));
+        float *weights = HermesNetwork::getWeights_Bias(Network,i);
+        file.write((char*)weights, sizeof(float) * L->no_weight);
+    }
+
+    file.write((char*)HermesNetwork::getWeights_Bias(Network,Network->no_layers-1), sizeof(float) * Network->outputLayer->no_weight);
+    file.close();
+
+
+
+}
+
+NeuralNetwork*  LoadNetwork(char filename[])
+{
+    /*
+     *      FILE STRUCTURE
+     *
+     * -------------------------------------------
+     *  No of Layers | Input Size | Output Size             -int,int,int
+     * -------------------------------------------
+     *  1st Hidden Layer Size | [Array of weights]          -int,[float]
+     * -------------------------------------------
+     *  2nd Hidden Layer Size | [Array of weights]          -int,[float]
+     * -------------------------------------------
+     *      :
+     *      :
+     *  nth Hidden Layer Size | [Array of weights]          -int,[float]
+     * -------------------------------------------
+     *  [Array of weights of Output Layer]                  -[float]
+     * -------------------------------------------
+     */
+
+    std::fstream file;
+    file.open(filename, std::ios::in| std::ios::binary);
+    if(!file.is_open())
+        return nullptr;
+    int layerSize, inputSize, outputSize;
+    file.read((char*)&layerSize,sizeof(int));
+    file.read((char*)&inputSize,sizeof(int));
+    file.read((char*)&outputSize,sizeof(int));
+
+    NeuralNetwork *Network = HermesNetwork::createNetwork(inputSize, outputSize);
+    HermesNetwork::Layer *L;
+
+    int hlSize = 0;
+    L = Network->inputLayer;
+    for(int i = 1; i < layerSize-1; i++)
+    {
+        file.read((char*)&hlSize,sizeof(int));
+        AddLayer(Network,hlSize);
+        L = L->next;
+
+
+        float hlWeights[L->no_weight];
+        file.read((char*)hlWeights, sizeof(float) * L->no_weight);
+
+        glBindTexture(GL_TEXTURE_2D, L->WeightTex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, L->no_weight, 1, 0, GL_RED, GL_FLOAT, hlWeights);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    L = Network->outputLayer;
+    float outputWeights[L->no_weight];
+    file.read((char*)outputWeights, sizeof(float) * L->no_weight);
+    glBindTexture(GL_TEXTURE_2D, L->WeightTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, L->no_weight, 1, 0, GL_RED, GL_FLOAT, outputWeights);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    file.close();
+    return Network;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
