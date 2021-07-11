@@ -15,9 +15,9 @@ This library has an API and a Framework.
   <br>
   
   ```c++
-  void InitNeuralLink(FunctionPointer GL_init_func);
+  void InitNeuralLink();
   ```
-  ###### This function must be called at the begining of main method. It setups gl context, compile shaders, create drawing polygon. As the library depends on OpenGL, OpenGL must be first initialized. Every OpenGL SDK has a function to initialize the library. This function name must be type casted to FunctionPointer and passed as an argument in this function. <br> If you are usnig GLEW for OpenGL SDK, this function can be called as `InitNeuralLink( (FunctionPointer)glewInit  );`
+  ###### This function must be called at the begining of main method. It setups gl context, compile shaders, create drawing polygon. This library depends on OpenGL so OpenGL is initialized inside this function. Currently it has inbuilt support for GLEW, GLUT and FreeGLUT.
 
   ```c++
   struct NeuralNetwork
@@ -59,8 +59,21 @@ This library has an API and a Framework.
   void TrainNetwork(NeuralNetwork* Network, float ActualOutput[], float LearningRate = 1.0);
   ```
   ###### This function generates error in output layer, backpropogate errors to previous hidden layers and updates every weight and bias which in turn result in trainig of the network.
+  
+  ```c++
+  void SaveNetwork(NeuralNetwork* Network, char filename[]);
+  ```
+  ###### Saves entire networks structure, weights and bias in a file specified as string in second argument.
+  
+  ```c++
+  NeuralNetwork* LoadNetwork(char filename[]);
+  ```
+  ###### Loads the saved netowrk in a file and rebuild that network. It returns `NeuralNetwork *` if a save file is loaded succesfully, if not it will return `NULL`. It can be used as complement to `NetworkBuilder()` to  create new network if it cant load saved network.
 </details>
   
+  
+ <br>
+ <br>
   
 ### `HermesNetwork Framework` 
 > The Framework part of this library is written inside `HermesNetwork::` namespace.<br>
