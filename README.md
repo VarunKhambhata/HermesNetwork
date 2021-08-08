@@ -12,63 +12,75 @@ This library has an API and a Framework.
 
 <details>
   <summary>Click to view API document </summary>
-  <br>
-  
+  <h1><hr></h1>
+    
   ```c++
   void InitNeuralLink();
   ```
   ###### This function must be called at the begining of main method. It setups gl context, compile shaders, create drawing polygon. This library depends on OpenGL so OpenGL is initialized inside this function. Currently it has inbuilt support for GLEW, GLUT and FreeGLUT.
-
+  <hr>
+  
   ```c++
   struct NeuralNetwork
   ```
   ###### This structure is a handle to entire network. It must always be used as pointer object. It also contain additional informations like no. of layers, no. of inputs, no. of outputs and total no. of weights
+  <hr>
+  
 
   ```c++
   NeuralNetwork* NetworkBuilder(int InputSize, initializer_list<int> HiddenLayers, int OutputSize);
   ```
   ###### It builds the neural network inside GPU and return a pointer of NerualNetwork structure.<br> Fist argument is input layer size, second agrument is a list of sizes of hidden layer which must be written as "{s1, s2, s3, ... }". If there is no hidden layer, simpily specify empty list like "{ }". And third argument is the size of output layer.
-
+  <hr>
+  
   ```c++
   void AddLayer(NeuralNetwork* Network, int size, unsigned int Depth = -1);
   ```
   ###### This adds a new hidden layer at specified depth in the network. If depth is not specified, the new layer will be added just before the output layer.<br> First argument is the pointer object of NeuralNetwork struct, second argument is size of layer and third agrument is position of layer, which is optional.
-
+  <hr>
+  
   ```c++
   void SendInputs(NeuralNetwork* Network, float Inputs[]);
   ```
   ###### This function send the array of inputs to the input layer. <br> First argument is the pointer object of NeuralNetwork struct and second argurment is array of inputs.
-
+  <hr>
+  
   ```c++
   float* GetOutputLayerData(NeuralNetwork* Network);
   ```
   ###### It returns an array of float type of the data in output layer. <br> First argument is the pointer object of NeuralNetwork struct.
-
+  <hr>
+  
 
   ```c++
   void TriggerNetwork(NeuralNetwork* Network);
   ```
   ###### This function runs the network by activating each layers from input layer to output layer serialy and generates ouputs in ouput layer. 
-
+  <hr>
+  
   ```c++
   void TriggerLayer(NeuralNetwork* Network, int LayerDepth);
   ```
   ###### Activates only the layer located at specifed depth.
+  <hr>
 
   ```c++
   void TrainNetwork(NeuralNetwork* Network, float ActualOutput[], float LearningRate = 1.0);
   ```
   ###### This function generates error in output layer, backpropogate errors to previous hidden layers and updates every weight and bias which in turn result in trainig of the network.
+  <hr>
   
   ```c++
   void SaveNetwork(NeuralNetwork* Network, char filename[]);
   ```
   ###### Saves entire networks structure, weights and bias in a file specified as string in second argument.
+  <hr>
   
   ```c++
   NeuralNetwork* LoadNetwork(char filename[]);
   ```
   ###### Loads the saved netowrk in a file and rebuild that network. It returns `NeuralNetwork *` if a save file is loaded succesfully, if not it will return `NULL`. It can be used as complement to `NetworkBuilder()` to  create new network if it cant load saved network.
+  <h1><hr></h1>
 </details>
   
   
@@ -81,6 +93,7 @@ This library has an API and a Framework.
 > Functions of this framework are also called from inside of the API functions.<br>
 
 <details>
+  <h1><hr></h1>
   <summary>Click to view Framework document</summary>
   <br>
   
@@ -88,56 +101,68 @@ This library has an API and a Framework.
    struct Layer
   ```
   ###### This structure is a handle to single layer in a neural network. An object of struct NeuralNetwork  consist of linked list of struct Layer. Layer also contain additional informations like no. of neurons, no. of weights, pointers to next and previous Layer and layerType.
+  <hr>
   
   ```c++
   enum layerType
   ```
   ###### It contain 3 value: inputL, outputL, hiddenL. A value of this enum is stored in struct Layer object, which gives necessary information to the framework for doing operations.
+  <hr>
   
   ```c++
   Layer* initLayer(int size, layerType typ);
   ```
   ###### Creates Layer object of given type and size and return pointer of that object. It executes necessary OpenGL procedures to creates array of neurons inside GPU. FIrst parameter is the size which is no. of neurons in the layer and second parameter is layerType which can be either of inputL, outputL, hiddenL.
+  <hr>
   
   ```c++
   NeuralNetwork* createNetwork(int InputSize, int OutputSize);
   ```
   ###### Creates a NeuralNetwork object and return it pointer. There are no hidden layer in the network. It only consist of input layer and output layer of specified size.
+  <hr>
   
   ```c++
   void connectLayer(NeuralNetwork* Network, Layer* prev, Layer* next);
   ```
   ###### Inserts a layer next to specified previous layer. After connecting, it generates necessary weights and bias between the two layer. A new layer can also be inserted between previously connected layers. First paramenteris a pointer of NeuralNetwork, second parameter is pointer of Layer after which a given layer will be inserted, third paremeter is pointer of Layer which will be inserted.
+  <hr>
   
   ```c++
   float* getWeights_Bias(NeuralNetwork* Network, int LayerDepth);
   ```
   ###### Returns an array of all the weights of layer at the specified depth. If layer at specified depth has 2 neurons amd layer before it has 3 neuron, the array returned will have data as: |w|w|w|b|w|w|w|b| where w is wieght valule and b is bias value; first 4 array elements belongs to first neuron and last four array elemtnets belongs to the second neuron.
+  <hr>
   
   ```c++
   void triggerLayer(Layer* Lyr);
   ```
   ###### Activates all neurons of a given layer. It calculates weighted sum of inputs from previous layer and use activation function to generate output value. NOTE: do not trigger input layer as it receives data sent not from the previous layer and there is no previous layer from input layer.
+  <hr>
   
   ```c++
   float* getLayerNeuronsData(NeuralNetwork* Network, int LayerDepth);
   ```
   ###### Returns array of data of every neuron of layer at specified depth.
+  <hr>
   
   ```c++
   void calcError(Layer* Lyr, float* ActualOutput);
   ```
   ###### Calculate error of each neurons in a layer. Error value are stored inside the neuron aside from activation value.
+  <hr>
   
   ```c++
   void backPropogateError(Layer* Lyr);
   ```
   ###### Get errors from next layer neurons and backpropogate those error to the given layer.
+  <hr>
   
   ```c++
   void trainLayer(Layer* Lyr, float* LearningRate);
   ```
   ###### Update the weight of the given layer using error value generated and given LearningRate.
+  <hr>
+  
   ```c++
   -Shader Codes-
   const char* vertexShader_code;
@@ -148,6 +173,6 @@ This library has an API and a Framework.
   const char* ErrorBackPropogate_code;  
   ```
   ###### All these string contains OpenGL shader program which are used to actually run neural network in a GPU. These programs are compiled when `initNeuralLink()` is called.
-  
+  <h1><hr><h1>
 </details>
   
