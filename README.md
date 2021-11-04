@@ -2,7 +2,60 @@
 A C++ library using OpenGL 3 to build and run neural network on any GPU.<br>
 No GPU configuration and selection is required as OpenGL drivers will handle all kind of GPUs.
 
-This library has an API and a Framework.
+
+## How to setup?    
+  Download HermesNetwork.h file and keep it with your main c++ file.<br>
+  Now we need to setup OpenGL. As HermesNetwork uses modern OpenGL with shaders, we need GLEW to support it. This support is avaliable from glew.h file.<br>
+  Download [__GLEW__](http://glew.sourceforge.net/) and add the folder with your main c++ file.<br>
+  If you are using linux, installing OpenGL would implicitly add glew.h file. X11 is also needed for linux.<br>
+  <br>
+  It is necessary to include GL/glew.h file before including HermesNetwork.h file.<br>
+  For Compiling add include path to GLEW header file and add library path to glew32s.lib file.<br>
+  For Windows, path woould look like GLEW/incluede/ and for linux, path would look like usr/include/. <br>
+
+  Add following linkers while compiling (in given order):<br>
+  &nbsp;&nbsp;&nbsp;&nbsp; (for windows)&nbsp;  `glew32s` `opengl32` `gdi32`<br>
+  &nbsp;&nbsp;&nbsp;&nbsp; (for linux) &nbsp; &nbsp; &nbsp;&nbsp;  `X11` `glut` `GLU` `GL` `GLEW`<br>
+  <br>
+  Add `#define GLEW_STATIC` before including glew.h file to remove dll file dependency for execution <br>
+  <br>
+  Note: MinGW compiler will not support default glew32s.lib file, so custom lib file needs to be compiled from GLEW source code
+  
+  Your main c++ file would look like this after setup:
+  ##### windows
+  ```c++
+  #define GLEW_STATIC
+  #include<GL/glew.h>  
+  #include "HermesNetwork.h"  
+  int main()
+  {
+      InitNeuralLink();
+      return 0;
+  }
+  ```
+  ##### linux
+  ```c++
+  #define GLEW_STATIC
+  #include<GL/glew.h>
+  #include<GL/gl.h>
+  #include<GL/glx.h>
+  #include<GL/glu.h>
+  #include "HermesNetwork.h"
+
+  int main()
+  {
+    InitNeuralLink();
+    return 0;
+  }
+  ```
+ If InitNeuralLink() can successfully execute, it means this library setup is completely finished.
+
+
+
+
+
+<br><br>
+## This library has an API and a Framework.
 
 ### `HermesNetwork API` 
 > The API part of library consist of publicaly avaliable functions that can be used in main program after including the header file.<br>
