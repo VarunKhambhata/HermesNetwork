@@ -9,7 +9,7 @@ No GPU configuration and selection is required as OpenGL drivers will handle all
   Download [__GLEW__](http://glew.sourceforge.net/) and add the folder with your main c++ file.<br>
   If you are using linux, installing OpenGL would implicitly add glew.h file. X11 is also needed for linux.<br>
   <br>
-  It is necessary to include GL/glew.h file before including HermesNetwork.h file.<br>
+  It is necessary to include GL/glew.h file in main c++ program before including HermesNetwork.h file.<br>
   For Compiling add include path to GLEW header file and add library path to glew32s.lib file.<br>
   For Windows, path woould look like GLEW/incluede/ and for linux, path would look like usr/include/. <br>
 
