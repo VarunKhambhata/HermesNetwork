@@ -11,7 +11,7 @@ No GPU configuration and selection is required as OpenGL drivers will handle all
   <br>
   It is necessary to include GL/glew.h file in main c++ program before including HermesNetwork.h file.<br>
   For Compiling add include path to GLEW header file and add library path to glew32s.lib file.<br>
-  For Windows, path woould look like GLEW/incluede/ and for linux, path would look like usr/include/. <br>
+  For Windows, path woould look like GLEW/include/ and for linux, path would look like usr/include/. <br>
 
   Add following linkers while compiling (in given order):<br>
   &nbsp;&nbsp;&nbsp;&nbsp; (for windows)&nbsp;  `glew32s` `opengl32` `gdi32`<br>
