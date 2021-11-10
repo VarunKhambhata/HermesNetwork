@@ -19,7 +19,7 @@ No GPU configuration and selection is required as OpenGL drivers will handle all
   <br>
   Add `#define GLEW_STATIC` before including glew.h file to remove dll file dependency for execution <br>
   <br>
-  **Note:** MinGW compiler will not support default glew32s.lib file, so custom lib file needs to be compiled from GLEW source code. You can download pre-compiled MinGW compitable GLEW from [__here__](http://www.grhmedia.com/glew.html)
+  **Note:** for MinGW compiler add `-static` argument while compiling to use static GLEW library
   
   Your main c++ file would look like this after setup:
   ##### windows
