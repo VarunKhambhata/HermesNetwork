@@ -8,6 +8,7 @@
 
 #include<initializer_list>
 #include<fstream>
+#include<iostream>
 #ifdef _WIN32
     #include<windows.h>
 #endif
@@ -122,7 +123,7 @@ namespace HermesNetwork
 
 	GLint ERROR_unifm_neuronOut_TEX;
 	GLint ERROR_unifm_actualOut_TEX;
-	
+
 	GLint ERROR_BP_unifm_neuronOut_TEX;
 	GLint ERROR_BP_unifm_next_L_TEX;
 	GLint ERROR_BP_unifm_weight_TEX;
@@ -186,18 +187,18 @@ namespace HermesNetwork
 		"float bias_loc;                                                                                \n"
 		"float val;                                                                                     \n"
 		"vec4 fetch;                                                                                    \n"
-		
+
 		"float sigmoid(float x)                                                                         \n"
 		"{                                                                                              \n"
 		"       return 1.0/(1.0 + exp(-x));                                                             \n"
 		"}                                                                                              \n"
-		
+
 		"float getCoord(float index, int size)                                                          \n"
 		"{                                                                                              \n"
 		        //"return ( index/size + (index+1)/size )/2.0 ;\n;" below is same formula but optimized by evaluating
 		"       return (2*index +1)/ (2*size);                                                          \n"
 		"}                                                                                              \n"
-		
+
 		"void main()                                                                                    \n"
 		"{                                                                                              \n"
 		"       weight_start = int(gl_FragCoord.x) * (PreviousLayer_size + 1);                          \n"
@@ -217,7 +218,7 @@ namespace HermesNetwork
 		"       FragColor.r = sigmoid(FragColor.r);                                                     \n"
 		"}                                                                                              \0"
 		;
-	
+
 	const char* WeightInitShader_code =
 		"#version 330 core                                                                                                  \n"
 		"precision highp float;                                                                                             \n"
@@ -239,7 +240,7 @@ namespace HermesNetwork
 		"       FragColor.r = rand(vec2( (i+TexCoord.x) * sin(no_weight) , (sin(TexCoord.x) * tan(TexCoord.y))/(i+1) ) );   \n"
 		"}                                                                                                                  \0"
 		;
-	
+
 	const char* WeightUpdateShader_code =
 		"#version 330 core                                                                          \n"
 		"precision highp float;                                                                     \n"
@@ -259,7 +260,7 @@ namespace HermesNetwork
 //		"vec4 A_output;                                                                             \n"
 		"float NeuronSelect;                                                                        \n"
 		"vec4 inputFrag;                                                                            \n"
-        
+
 		"void main()                                                                                \n"
 		"{                                                                                          \n"
 		        //get weight
@@ -271,7 +272,7 @@ namespace HermesNetwork
 		        //get that input neuron value
 		"       inputFrag = texture(PreviousLayer, vec2(NeuronSelect / PreviousLayer_size, 0) );    \n"
 		"       if(NeuronSelect == PreviousLayer_size + 0.5)                                        \n"
-		"           inputFrag.r = 1.0;                                                              \n"
+		"       {    inputFrag.r = 1.0;}                                                             \n"
 		        //update weight
 		"       weight.r += output.b * inputFrag.r * LearningRate;                                  \n"
 		"       FragColor.r = weight.r;                                                             \n"
@@ -298,7 +299,7 @@ namespace HermesNetwork
 		"       vec4 A_Output = texture(ActualOutput, TexCoord);   \n"
 		"       FragColor.b = A_Output.r - FragColor.r;            \n"
 #ifndef REMOVE_GRADIENT_DESCENT
-    "       FragColor.b *= sigmoid_derivative(FragColor.r);    \n"
+    "       FragColor.b *= sigmoid_derivative(FragColor.r);  \n"
 #endif
 		"}                                                         \0"
 		;
@@ -338,13 +339,18 @@ namespace HermesNetwork
 		"           nextLayerNeuron = texture(NextLayerOutput, vec2(getCoord(i,OutputLayer_size),0));                                    \n"
 		"           weight = texture(WeightsToNextLayer, vec2(getCoord(i*(OutputLayer_size+1) + int(gl_FragCoord.x),weight_size),0));    \n"
 #ifndef REMOVE_GRADIENT_DESCENT
-        "           ERROR += (nextLayerNeuron.b * weight.r) * sigmoid_derivative(nextLayerNeuron.r);                                     \n"
+// ****   below are 3 different ways to backpropogate. 1. is not good but needs to be tested. 2 and 3 are same but in 3 sigmoid_derivation is multiplied latter.
+// ****                                                                                       needs to find out which one to use 2/3 if output is going to more than one neuron
+//        "           ERROR += (nextLayerNeuron.b * weight.r) * sigmoid_derivative(nextLayerNeuron.r);                                     \n"
+          "           ERROR += sigmoid_derivative(FragColor.r) * (nextLayerNeuron.b * weight.r); \n"
+//            "           ERROR += (nextLayerNeuron.b * weight.r); \n"
 #endif
 #ifdef REMOVE_GRADIENT_DESCENT
         "           ERROR += (nextLayerNeuron.b * weight.r) * (nextLayerNeuron.r);                                                       \n"
 #endif
 		"       }                                                                                                                        \n"
-		"       FragColor.b = ERROR;                                                                                                     \n"
+//		"       FragColor.b = ERROR * sigmoid_derivative(FragColor.r);                                                                   \n"
+        "       FragColor.b = ERROR;                                                                                                     \n"
 		"}                                                                                                                               \0"
 		;
 																																		
@@ -665,21 +671,40 @@ float*          GetOutputLayerData(NeuralNetwork* Network)
 
 void            TrainNetwork(NeuralNetwork* Network, float *ActualOutput, float LearningRate /* = 1.0 */)
 {
+    /*
+     *      STEPS FOR BACKPORPAGATION
+     *
+     *    1.  calculate error for output layer                    --  for each neuron: error = sigmoid_derivative(neuron_output * (ActualOutput-neuron_output))
+     *    2.  adjust weights for output layer according to error  --  for each weights coming from neuron m, going to a neuron n: weights += n.error*m.value
+     *    3.  calculate error for hidden layer                    --  same as that of output layer error calculation
+     *    4.  adjust weights for hidden layer according to error  --  same as that of output layer weight adjustment
+     */
+
 	using namespace HermesNetwork;
-	
+	// 1.
 	calcError(Network->outputLayer, ActualOutput);
-    Layer *Lyr = Network->inputLayer->next;
-    for(int i = Network->no_layers; i > 2; i--)
+	//2.
+	trainLayer(Network->outputLayer, &LearningRate);
+	//3.
+	Layer *Lyr = Network->outputLayer->prev;
+	for(int i = Network->no_layers; i > 2; i--)
     {
         backPropogateError(Lyr);
-        Lyr = Lyr->next;
-    }
-	Lyr = Network->inputLayer;
-    for(int i=1;i <Network->no_layers;i++)
-    {
-        Lyr = Lyr->next;
         trainLayer(Lyr, &LearningRate);
+        Lyr = Lyr->prev;
     }
+//    Layer *Lyr = Network->inputLayer->next;
+//    for(int i = Network->no_layers; i > 2; i--)
+//    {
+//        backPropogateError(Lyr);
+//        Lyr = Lyr->next;
+//    }
+//	Lyr = Network->inputLayer;
+//    for(int i=1;i <Network->no_layers;i++)
+//    {
+//        Lyr = Lyr->next;
+//        trainLayer(Lyr, &LearningRate);
+//    }
 
 }
 
