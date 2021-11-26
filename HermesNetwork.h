@@ -1,14 +1,19 @@
 /*
- *   #define REMOVE_GRADIENT_DESCENT  before including this header file if you dont want to use gradient descent in training
+ * #define HN_SharedGLcontext
+ *      If the main program is also using a OpenGL context for anything other than NeuralNetwork processing,
+ *      then defining this macro before "include<HermesNetwork.h>" statement in main program will make
+ *      HermesNetwork share OpenGL graphics context with other graphics processing task like UI, 2D/3D rendering etc.
+ *      But if this macro is defined, then before calling InitNeuralLink(), a GL context must be already created and initialized
+ *
+ *
 */
-
 
 #ifndef __HERMES_NETWORK__
 #define __HERMES_NETWORK__
 
 #include<initializer_list>
 #include<fstream>
-#include<iostream>
+
 #ifdef _WIN32
     #include<windows.h>
 #endif
@@ -298,9 +303,7 @@ namespace HermesNetwork
 		"       FragColor = texture(NeuronsOutput, TexCoord);      \n"
 		"       vec4 A_Output = texture(ActualOutput, TexCoord);   \n"
 		"       FragColor.b = A_Output.r - FragColor.r;            \n"
-#ifndef REMOVE_GRADIENT_DESCENT
-    "       FragColor.b *= sigmoid_derivative(FragColor.r);  \n"
-#endif
+        "       FragColor.b *= sigmoid_derivative(FragColor.r);    \n"
 		"}                                                         \0"
 		;
 
@@ -338,18 +341,27 @@ namespace HermesNetwork
 		"       {                                                                                                                        \n"
 		"           nextLayerNeuron = texture(NextLayerOutput, vec2(getCoord(i,OutputLayer_size),0));                                    \n"
 		"           weight = texture(WeightsToNextLayer, vec2(getCoord(i*(OutputLayer_size+1) + int(gl_FragCoord.x),weight_size),0));    \n"
-#ifndef REMOVE_GRADIENT_DESCENT
+
+//#ifndef REMOVE_GRADIENT_DESCENT
+
+
 // ****   below are 3 different ways to backpropogate. 1. is not good but needs to be tested. 2 and 3 are same but in 3 sigmoid_derivation is multiplied latter.
 // ****                                                                                       needs to find out which one to use 2/3 if output is going to more than one neuron
-//        "           ERROR += (nextLayerNeuron.b * weight.r) * sigmoid_derivative(nextLayerNeuron.r);                                     \n"
-          "           ERROR += sigmoid_derivative(FragColor.r) * (nextLayerNeuron.b * weight.r); \n"
-//            "           ERROR += (nextLayerNeuron.b * weight.r); \n"
-#endif
-#ifdef REMOVE_GRADIENT_DESCENT
+
+
+// /*1*/"           ERROR += (nextLayerNeuron.b * weight.r) * sigmoid_derivative(nextLayerNeuron.r);                                   \n"
+   /*2*/"           ERROR += sigmoid_derivative(FragColor.r) * (nextLayerNeuron.b * weight.r);                                         \n"
+// /*3*/"           ERROR += (nextLayerNeuron.b * weight.r);                                                                           \n"
+
+//#endif
+
+
+/* #ifdef REMOVE_GRADIENT_DESCENT
         "           ERROR += (nextLayerNeuron.b * weight.r) * (nextLayerNeuron.r);                                                       \n"
-#endif
+#endif */
+
 		"       }                                                                                                                        \n"
-//		"       FragColor.b = ERROR * sigmoid_derivative(FragColor.r);                                                                   \n"
+// /*3*/"       FragColor.b = ERROR * sigmoid_derivative(FragColor.r);                                                                   \n"
         "       FragColor.b = ERROR;                                                                                                     \n"
 		"}                                                                                                                               \0"
 		;
@@ -397,52 +409,54 @@ void            InitNeuralLink()
 {
 	using namespace HermesNetwork;
 
-    //Create window context
-        #ifdef _WIN32
-            HWND offscreen_context = ::CreateWindowA("STATIC", "OpenGL Context Space", 0 , 0, 0, 0, 0, NULL, NULL, NULL, NULL);
-            PIXELFORMATDESCRIPTOR pfd =
-                {
-                    sizeof(PIXELFORMATDESCRIPTOR),1,
-                    PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, PFD_TYPE_RGBA,
-                    32,0,0,0,0,0,0,
-                    0,0,0,0,0,0,
-                    0,24,8,0,
-                    PFD_MAIN_PLANE,0,0, 0, 0
-                };
-            HDC DC = GetDC(offscreen_context);
-            int  letWindowsChooseThisPixelFormat;
-            letWindowsChooseThisPixelFormat = ChoosePixelFormat(DC, &pfd);
-            SetPixelFormat(DC,letWindowsChooseThisPixelFormat, &pfd);
-            GlRenderingContext = wglCreateContext(DC);
-            wglMakeCurrent (DC, GlRenderingContext);
-            //wglDeleteContext(GLRenderingContext);
-        #endif
-        #ifdef __linux__
-            //call linux api to create invisible window
-            //attatch gl viewport
-            //make gl context
-        #endif
-        #ifdef __APPLE__
-            //call macOS api to create invisible window
-            //attatch gl viewport
-            //make gl context
-        #endif
-        #ifdef __ANDROID__
-            //call macOS api to create invisible window
-            //attatch gl viewport
-            //make gl context
-        #endif
+    #ifndef HN_SharedGLcontext
+        //Create window context
+            #ifdef _WIN32
+                HWND offscreen_context = ::CreateWindowA("STATIC", "OpenGL Context Space", 0 , 0, 0, 0, 0, NULL, NULL, NULL, NULL);
+                PIXELFORMATDESCRIPTOR pfd =
+                    {
+                        sizeof(PIXELFORMATDESCRIPTOR),1,
+                        PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, PFD_TYPE_RGBA,
+                        32,0,0,0,0,0,0,
+                        0,0,0,0,0,0,
+                        0,24,8,0,
+                        PFD_MAIN_PLANE,0,0, 0, 0
+                    };
+                HDC DC = GetDC(offscreen_context);
+                int  letWindowsChooseThisPixelFormat;
+                letWindowsChooseThisPixelFormat = ChoosePixelFormat(DC, &pfd);
+                SetPixelFormat(DC,letWindowsChooseThisPixelFormat, &pfd);
+                GlRenderingContext = wglCreateContext(DC);
+                wglMakeCurrent (DC, GlRenderingContext);
+                //wglDeleteContext(GLRenderingContext);
+            #endif
+            #ifdef __linux__
+                //call linux api to create invisible window
+                //attatch gl viewport
+                //make gl context
+            #endif
+            #ifdef __APPLE__
+                //call macOS api to create invisible window
+                //attatch gl viewport
+                //make gl context
+            #endif
+            #ifdef __ANDROID__
+                //call macOS api to create invisible window
+                //attatch gl viewport
+                //make gl context
+            #endif
 
-    //Init openGl context
-        #ifdef __glew_h__
-            glewInit();
-        #endif
-        #ifdef __glut_h__
-            glutInit(NULL,NULL);
-        #endif
-        #ifdef  __FREEGLUT_H__
-            glutInit(NULL,NULL);
-        #endif
+        //Init openGl context
+            #ifdef __glew_h__
+                glewInit();
+            #endif
+            #ifdef __glut_h__
+                glutInit(NULL,NULL);
+            #endif
+            #ifdef  __FREEGLUT_H__
+                glutInit(NULL,NULL);
+            #endif
+    #endif
 
 
 	int success;
@@ -998,6 +1012,7 @@ float*					HermesNetwork::getWeights_Bias(NeuralNetwork* Network, int LayerDepth
 	glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 
 	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	return src;
 }
 
@@ -1050,6 +1065,7 @@ float*					HermesNetwork::getLayerNeuronsData(NeuralNetwork* Network, int LayerD
 	glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 
 	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	return src;
 
 	///* Store in return array */
