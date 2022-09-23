@@ -262,20 +262,20 @@ namespace HermesNetwork
             //get weight
         "   weight = imageLoad(Weights, ivec2(gl_GlobalInvocationID.xy));                       \n"
             //figure out which output neuron this weight connects to
-    "       OutSelect = mod(gl_GlobalInvocationID.x, NextLayer_size );"
+        // "   OutSelect = mod(gl_GlobalInvocationID.x, NextLayer_size );"
+        // "   OutSelect = gl_GlobalInvocationID.x / (NextLayer_size+1);"
+        "   OutSelect = gl_GlobalInvocationID.x / (PreviousLayer_size+1);"
             //get that output neuron value  
         "   outputVal = imageLoad(NeuronsOutput, ivec2(OutSelect,0));                           \n"
             //figure out which input neuron this weight belongs to
         "   NeuronSelect = mod(gl_GlobalInvocationID.x, PreviousLayer_size + 1);                \n"
             //get that input neuron value
         "   inputVal = imageLoad(PreviousLayer, ivec2(NeuronSelect / PreviousLayer_size, 0));   \n"
-            //set bias to 1
+            //set bias to 1 (can also use == instead of >=)
         "   if(NeuronSelect >= PreviousLayer_size)                                              \n"
         "       inputVal.r = 1.0;                                                               \n"        
-            //update weight
-        "   weight.r += outputVal.b * inputVal.r * LearningRate;                                \n"        
-        // "   if(NeuronSelect >= PreviousLayer_size)                                              \n"
-        //         "weight = vec4(1,1,0,1);"
+            //update weight        
+        "   weight.r += outputVal.b * inputVal.r * LearningRate;                                \n"                
         "   imageStore(Weights, ivec2(gl_GlobalInvocationID.xy), weight);                       \n"
         "}                                                                                      \0"
         ;    
@@ -300,7 +300,7 @@ namespace HermesNetwork
         "{                                                                                                              \n"        
         "   int weight_size = (OutputLayer_size +1) * NextLayer_size;                                                   \n"
         "   neuron = imageLoad(NeuronsOutput, ivec2(gl_GlobalInvocationID.xy));                                         \n"
-        "   for(int i=0; i<OutputLayer_size; i++)                                                                       \n"
+        "   for(int i=0; i<NextLayer_size; i++)                                                                       \n"
         "   {                                                                                                           \n"
         "       nextLayerNeuron = imageLoad(NextLayerOutput, ivec2(i,0));                                               \n"
         "       weight = imageLoad(WeightsToNextLayer, ivec2(i*(OutputLayer_size+1) + int(gl_GlobalInvocationID.x),0)); \n"
@@ -545,6 +545,16 @@ void HermesNetwork::triggerLayer(Layer Lyr)
     glUniform1i(ACTV_unifm_weight_size, Lyr->no_weight);
     glDispatchCompute(Lyr->no_neuron,1,1);
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);    
+}
+
+void fetchLayerNeuronsData_ERR(HermesNetwork::Layer Lyr)
+{
+    using namespace HermesNetwork;
+    if(!Lyr->data)
+        Lyr->data = new float[Lyr->no_neuron];
+    glBindTexture(GL_TEXTURE_2D, Lyr->NeuronsTex);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_BLUE, GL_FLOAT, Lyr->data);
+    glBindTexture(GL_TEXTURE_2D, 0);    
 }
 
 void HermesNetwork::fetchLayerNeuronsData(Layer Lyr)
@@ -900,23 +910,52 @@ void FetchOutputLayerData(NeuralNetwork Network)
 void TrainNetwork(NeuralNetwork Network, float ActualOutput[], float LearningRate = 1.0)
 {    
     using namespace HermesNetwork;
+    {
+        /*
+        *      STEPS FOR BACKPORPAGATION (old)
+        *
+        *    1.  calculate error for output layer                    --  for each neuron: error = sigmoid_derivative(neuron_output * (ActualOutput-neuron_output))
+        *    2.  adjust weights for output layer according to error  --  for each weights coming from neuron m, going to a neuron n: weights += n.error*m.value
+        *    3.  calculate error for hidden layer                    --  same as that of output layer error calculation
+        *    4.  adjust weights for hidden layer according to error  --  same as that of output layer weight adjustment
+        */
 
+        // /*1*/ calcError(Network->outputLayer, ActualOutput);
+        // /*2*/ trainLayer(Network->outputLayer, &LearningRate);
+        
+        // Layer Lyr = Network->outputLayer->prev;
+        // for(int i = Network->no_layers; i > 2; i--)
+        // {
+        //     /*3*/ backPropogateError(Lyr);
+        //     /*4*/ trainLayer(Lyr, &LearningRate);
+        //     Lyr = Lyr->prev;
+        // }
+    }
     /*
-     *      STEPS FOR BACKPORPAGATION
+     *      STEPS FOR BACKPORPAGATION (new)
      *
      *    1.  calculate error for output layer                    --  for each neuron: error = sigmoid_derivative(neuron_output * (ActualOutput-neuron_output))
-     *    2.  adjust weights for output layer according to error  --  for each weights coming from neuron m, going to a neuron n: weights += n.error*m.value
      *    3.  calculate error for hidden layer                    --  same as that of output layer error calculation
+     *    2.  adjust weights for output layer according to error  --  for each weights coming from neuron m, going to a neuron n: weights += n.error*m.value    
      *    4.  adjust weights for hidden layer according to error  --  same as that of output layer weight adjustment
      */
-
+    
     /*1*/ calcError(Network->outputLayer, ActualOutput);
-    /*2*/ trainLayer(Network->outputLayer, &LearningRate);
+    // /*2*/ trainLayer(Network->outputLayer, &LearningRate);
     
     Layer Lyr = Network->outputLayer->prev;
 	for(int i = Network->no_layers; i > 2; i--)
     {
         /*3*/ backPropogateError(Lyr);
+        // /*4*/ trainLayer(Lyr, &LearningRate);
+        Lyr = Lyr->prev;
+    }
+
+ /*2*/ trainLayer(Network->outputLayer, &LearningRate);
+    Lyr = Network->outputLayer->prev;
+	for(int i = Network->no_layers; i > 2; i--)
+    {
+        // /*3*/ backPropogateError(Lyr);
         /*4*/ trainLayer(Lyr, &LearningRate);
         Lyr = Lyr->prev;
     }
