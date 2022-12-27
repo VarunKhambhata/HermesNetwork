@@ -20,7 +20,8 @@
     #include <windows.h>
 #endif
 #ifdef __linux__
-    //include linux dependent header for creating window
+    #include<X11/X.h>
+    #include<X11/Xlib.h>
 #endif
 #ifdef __APPLE__
     //include macOS dependent header for creating window
@@ -81,7 +82,9 @@ namespace HermesNetwork
         HGLRC GlRenderingContext;
     #endif
     #ifdef __linux__
-        //Declare object of linux's window and rendering context
+        Display* Xdisplay;
+        Window Xoffscreen_window;
+        GLXContext GlRenderingContext;
     #endif
     #ifdef __APPLE__
         //Declare object of macOS's window and rendering context
@@ -671,9 +674,16 @@ bool InitNeuralLink(bool GL_Context_Shared = false)
                 //wglDeleteContext(GLRenderingContext);
         #endif
         #ifdef __linux__
-                //call linux api to create invisible window
-                            //attatch gl viewport
-                            //make gl context
+                Xdisplay = XOpenDisplay(NULL);
+                int s = DefaultScreen(Xdisplay);
+                Xoffscreen_window = XCreateSimpleWindow(Xdisplay, RootWindow(Xdisplay, s), 0, 0, 800, 500, 1, BlackPixel(Xdisplay, s), WhitePixel(Xdisplay, s));      
+                //XMapWindow(Xdisplay, Xoffscreen_window);
+
+                GLint att[] = { GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None };
+                XVisualInfo *vi = glXChooseVisual(Xdisplay, 0, att);                
+                GlRenderingContext = glXCreateContext(Xdisplay, vi, NULL, GL_TRUE);
+                glXMakeCurrent(Xdisplay, Xoffscreen_window, GlRenderingContext);  
+                delete vi; 
         #endif
         #ifdef __APPLE__
                 //call macOS api to create invisible window
