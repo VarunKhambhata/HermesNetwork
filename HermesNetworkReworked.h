@@ -12,7 +12,7 @@
 #ifndef __HERMES_NETWORK__
 #define __HERMES_NETWORK__
 
-#include <initializer_list>
+#include <vector>
 #include <fstream>
 #include <ctime>
 
@@ -402,7 +402,7 @@ bool InitNeuralLink(bool GL_Context_Shared);
 
 //Builds network with given input size, hiddenlayer size as array and output size.
 template <typename T = int>
-NeuralNetwork NetworkBuilder(int InputSize, std::initializer_list<T> HiddenLayers, int OutputSize);
+NeuralNetwork NetworkBuilder(int InputSize, std::vector<T> HiddenLayers, int OutputSize);
 
 //Activates every neurons of a layer at specified depth
 void TriggerLayer(NeuralNetwork* Network, int LayerDepth);
@@ -856,7 +856,7 @@ bool InitNeuralLink(bool GL_Context_Shared = false)
 }
 
 template <typename T = int>
-NeuralNetwork NetworkBuilder(int InputSize, std::initializer_list<T> HiddenLayers, int OutputSize)
+NeuralNetwork NetworkBuilder(int InputSize, std::vector<T> HiddenLayers, int OutputSize)
 {    
     using namespace HermesNetwork;
     NeuralNetwork nn = createBasicNetwork(InputSize, OutputSize);
