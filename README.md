@@ -1,6 +1,15 @@
 # HermesNetwork
-A C++ library using OpenGL 3 to build and run neural network on any GPU.<br>
+A C++ library using OpenGL 4 to build and run neural network on any GPU.<br>
 No GPU configuration and selection is required as OpenGL drivers will handle all kind of GPUs.
+
+<br>
+<p align="center"> <i> Hermes Network Inspector is a software built using HeremsNetwok Library </i> </p>
+<img width="1000" height="800" alt="Hermesnetwork-Inspector" src="https://github.com/user-attachments/assets/4fdad2c5-68b5-44ab-8c6c-a95b93375a4c" />
+
+<p align="center"> <i> Ping Pong game played by 2 neural network in Hermes Network Inspector </i> </p>
+
+https://github.com/user-attachments/assets/32a3e31d-b2fc-483f-9b5a-9e93224558df
+
 
 
 ## How to setup?    
