@@ -1,7 +1,7 @@
 #include<CleanImGuiWin.h>
 #include <iostream>
 #include <vector>
-#include "HermesNetworkReworked.h"
+#include "HermesNetwork.h"
 
 void Theme1();
 void DrawPingPong();
