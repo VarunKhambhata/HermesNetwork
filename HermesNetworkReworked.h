@@ -65,6 +65,7 @@ namespace HermesNetwork
     //Handle to entire network.    
     struct NeuralNetworkHandle
     {
+    public:
         unsigned int no_layers = 2;
         unsigned int no_of_input = 0;
         unsigned int no_of_output = 0;
@@ -74,6 +75,11 @@ namespace HermesNetwork
         HermesNetwork::Layer outputLayer = nullptr;
         GLuint pbo;
         float* Out = nullptr;
+        unsigned int batchSize = 0;
+    // private:
+        unsigned int trainingCountByBatch = 0;
+        bool errorAccumulation = false;
+        
     };
     typedef NeuralNetworkHandle* NeuralNetwork;
 
@@ -205,6 +211,7 @@ namespace HermesNetwork
 
         "void main()                                                                     \n"
         "{                                                                               \n"
+        "   vec4 neuronData = imageLoad(img_output, ivec2(gl_GlobalInvocationID.xy)); \n"
         "   weight_start = int(gl_GlobalInvocationID.x) * (PreviousLayer_size + 1);      \n"
         "   bias_loc = weight_start + PreviousLayer_size;                                \n"
         "   val = 0;                                                                     \n"
@@ -220,7 +227,9 @@ namespace HermesNetwork
         "   fetch = imageLoad(LayerWeight, ivec2(bias_loc,0));                           \n"
         "   Rval += fetch.r;                                                             \n"
         "   Rval = Activate(Rval);                                                       \n"
-        "   imageStore(img_output, ivec2(gl_GlobalInvocationID.xy ), vec4(Rval,0,0,1));  \n"
+        "   neuronData.r = Rval; neuronData.a = 1.0;                                     \n"
+        "   imageStore(img_output, ivec2(gl_GlobalInvocationID.xy ), neuronData);        \n"
+        // "   imageStore(img_output, ivec2(gl_GlobalInvocationID.xy ), vec4(Rval,0,0,1));  \n"        
         "}                                                                               \0"        
         ;
 
@@ -738,20 +747,22 @@ bool InitNeuralLink(bool GL_Context_Shared = false)
     
 
     /* handle compile error	*/
+    std::cout << "Compute Shader Builds: [";
     int success;
     bool fail;
     glGetShaderiv(WeightInitComputetShader, GL_COMPILE_STATUS, &success); fail |= !success;
-    std::cout<<success<<fail<<"\n";
+    std::cout << success<< ",";
     glGetShaderiv(ActivationComputeShader, GL_COMPILE_STATUS, &success); fail |= !success;
-    std::cout<<success<<fail<<"\n";
+    std::cout << success<< ",";
     glGetShaderiv(ErrorGenComputeShader, GL_COMPILE_STATUS, &success); fail |= !success;
-    std::cout<<success<<fail<<"\n";
+    std::cout << success<< ",";
     glGetShaderiv(WeightUpdateComputeShader, GL_COMPILE_STATUS, &success); fail |= !success;
-    std::cout<<success<<fail<<"\n";
+    std::cout << success<< ",";
     glGetShaderiv(ErrorBPComputeShader, GL_COMPILE_STATUS, &success); fail |= !success;
-    std::cout<<success<<fail<<"\n";
+    std::cout << success<< ",";
     glGetShaderiv(Active_DeriveLibsComputeShader, GL_COMPILE_STATUS, &success); fail |= !success;
-    std::cout<<success<<fail<<"\n";
+    std::cout << success<< ",";
+    std::cout <<"] " << fail << std::endl;
 
 
     char infoLog[512];
@@ -827,12 +838,12 @@ bool InitNeuralLink(bool GL_Context_Shared = false)
 	ACTV_unifm_Layer_weight = 2;  // from shader uniform layout binding  
     ACTVLibs_unifm_SEL = glGetUniformLocation(Activation, "selection");
 
-    std::cout<<"LOC: "<< glGetUniformLocation(Activation, "selection") << " "<<  ACTV_unifm_prev_size ;
+    std::cout<<"LOC: "<< glGetUniformLocation(Activation, "selection") << " "<<  ACTV_unifm_prev_size << std::endl;
 
     glUseProgram(ErrorGen);
     ERROR_unifm_neuronOut_TEX = 0; // from shader uniform layout binding
     ERROR_unifm_actualOut_TEX = 1; // from shader uniform layout binding
-    std::cout<<"LOC: "<< glGetUniformLocation(Activation, "selection") << " "<<  glGetUniformLocation(ErrorGen, "NeuronsOutput") ;
+    std::cout<<"LOC: "<< glGetUniformLocation(Activation, "selection") << " "<<  glGetUniformLocation(ErrorGen, "NeuronsOutput") << std::endl;
 
     glUseProgram(WeightUpdate);
     WGHTUP_unifm_next_size = glGetUniformLocation(WeightUpdate, "NextLayer_size");
@@ -848,7 +859,7 @@ bool InitNeuralLink(bool GL_Context_Shared = false)
 	ERROR_BP_unifm_weight_TEX = 2;    // from shader uniform layout binding
 	ERROR_BP_unifm_Layer_size = glGetUniformLocation(ErrorBackPropogate, "OutputLayer_size");
 	ERROR_BP_unifm_next_L_size = glGetUniformLocation(ErrorBackPropogate, "NextLayer_size"); 
-    std::cout<<"LOC: "<<  ERROR_BP_unifm_Layer_size << glGetUniformLocation(ErrorBackPropogate, "selection");   
+    std::cout<<"LOC: "<<  ERROR_BP_unifm_Layer_size << glGetUniformLocation(ErrorBackPropogate, "selection") << std::endl;
        
 
     srand(time(0));
@@ -969,6 +980,23 @@ void TrainNetwork(NeuralNetwork Network, float ActualOutput[], float LearningRat
         /*4*/ trainLayer(Lyr, &LearningRate);
         Lyr = Lyr->prev;
     }
+
+    /*
+     * If training is in batch, set shader to accumulate errors 
+     * until batch is filed.         
+     */    
+    if(Network->batchSize > 0)
+    {
+        Network->trainingCountByBatch ++;
+        if(Network->trainingCountByBatch == Network->batchSize)
+        {
+            Network->trainingCountByBatch = 0;
+            Network->errorAccumulation  = false;
+        }
+        else
+            Network->errorAccumulation  = true;
+    }
+    
     
 }
 
