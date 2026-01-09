@@ -22,6 +22,27 @@ namespace PingPong {
 	bool nn1Learn = true, nn2Learn= true;
 }
 
+void ResetNetwork(NeuralNetwork n) {
+    HermesNetwork::Layer L = PingPong::N1->inputLayer->next;
+
+    for(int i = 0; i < n->no_layers-2; i++) {
+        glBindImageTexture(0, L->WeightsTex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+        glUseProgram(HermesNetwork::WeightInit);
+
+        glUniform1i(HermesNetwork::WINT_unifm_seed, rand());
+        glDispatchCompute(L->no_weight, 1, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        L = L->next;
+    }
+
+    glBindImageTexture(0, n->outputLayer->WeightsTex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+    glUseProgram(HermesNetwork::WeightInit);
+
+    glUniform1i(HermesNetwork::WINT_unifm_seed, rand());
+    glDispatchCompute(n->outputLayer->no_weight, 1, 1);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+}
+
 
 void DrawPingPong() {
 	if(PingPong::Enable) {
@@ -240,7 +261,11 @@ void DrawPingPong() {
 			ImGui::SetCursorPosX(820);
 			ImGui::Checkbox("Learn", &PingPong::nn1Learn);        
 			ImGui::SameLine();
-			ImGui::Button("Reset");
+            ImGui::PushID(1);
+			if(ImGui::Button("Reset")) {
+                ResetNetwork(PingPong::N1);
+            }
+            ImGui::PopID();
 			ImGui::SetCursorPosX(820);
 			ImGui::Image((ImTextureID)PingPong::N1->inputLayer->NeuronsTex, { 100,20 });
 			PingPong::L = PingPong::N1->inputLayer->next;
@@ -260,7 +285,11 @@ void DrawPingPong() {
 			ImGui::SetCursorPosX(820);
 			ImGui::Checkbox("Learn ", &PingPong::nn2Learn);
 			ImGui::SameLine();
-			ImGui::Button("Reset");
+            ImGui::PushID(2);
+			if(ImGui::Button("Reset")) {
+                ResetNetwork(PingPong::N2);
+            }
+            ImGui::PopID();
 			ImGui::SetCursorPosX(820);
 			ImGui::Image((ImTextureID)PingPong::N2->inputLayer->NeuronsTex, { 100,20 });
 			PingPong::L = PingPong::N2->inputLayer->next;

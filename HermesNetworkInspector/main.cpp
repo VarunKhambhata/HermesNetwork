@@ -28,28 +28,27 @@ namespace LogicGateTrainer {
 	float Result[4][3];
 }
 
-NeuralNetwork NN = NULL;
+NeuralNetwork NN = nullptr;
 int Input_OutputLayer[2] = { 1,1 };
 int hiddenLayerSize = 0;
 std::vector<int> hiddenLayers;
 uint8_t activationType = ActivationType::Sigmoid;
 
-float* INPUTdata = NULL, * OUTPUTdata = NULL, LR = 1;
+float* INPUTdata = nullptr;
+float * OUTPUTdata = nullptr;
+float learningRate = 1;
 
-bool CTRLPNL = false;
+ImVec2 NNStructSize = { 300,320 }, NNControlerSize = { 300, 300 };
+ImVec2 WinPOS, ButtonSize = { 280,22 };
 
-ImVec2 NNStructSize = { 300,320 }, NNCTRLsize = { 300, 300 };
-ImVec2 WinPOS, BTNsize = { 280,22 };
-
-float TexLYRparts = 0;
+bool controlPanel = false;
 
 int main() {
 	GLFWwindow* window = ImGui::initGLFW(1000, 800);
 	ImGui::initImGui(window, "HermesNetwork Inspector");
-	ImGui::GetIO().IniFilename = NULL;
-
-	GLFWmonitor* primary = glfwGetPrimaryMonitor();
-	const GLFWvidmode* mode = glfwGetVideoMode(primary);
+	ImGui::GetIO().IniFilename = nullptr;
+	
+	const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
     int swapInterval = mode->refreshRate/60;
     if(swapInterval < 1)
         swapInterval = 1;
@@ -67,7 +66,7 @@ int main() {
 		ImGui::StartCleanWindow(window);				
 
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {4,3});
-		ImGui::Begin("###THEME", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoTitleBar);			
+		ImGui::Begin("###THEME", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoTitleBar);			
 			ImGui::SetWindowPos({ 74, -4 });
 			/*ImGui::SetWindowPos({ 54, -4 });*/
 			if (ImGui::Button("1"))	Theme1();
@@ -95,10 +94,10 @@ int main() {
 
 		//neural network structure window
 		ImGui::SetNextWindowPos({ 2, ImGui::GetCursorPosY() });
-		ImGui::Begin("Neural Network Structure", NULL ,ImGuiWindowFlags_NoResize);
+		ImGui::Begin("Neural Network Structure", nullptr ,ImGuiWindowFlags_NoResize);
 		{
 			ImGui::SetWindowSize(NNStructSize);
-			if (!CTRLPNL) {
+			if (!controlPanel) {
 				ImGui::Text("Input & Output Layers");
 				ImGui::DragInt2("##inp_out", Input_OutputLayer);
 				ImGui::Text("Hidden Layers");
@@ -112,7 +111,7 @@ int main() {
 				}
 				if(ImGui::BeginChild("hl child", { 0,100 }, true)) {
 					for (int i = 0; i < hiddenLayers.size(); i++) {
-						ImGui::PushID(i);							
+						ImGui::PushID(i);
 						ImGui::DragInt("", &hiddenLayers[i],1);
 						ImGui::SameLine();
 						ImGui::Text("%d",i+1);
@@ -121,7 +120,7 @@ int main() {
 					ImGui::EndChild();
 				}
 				ImGui::Separator();
-				if (ImGui::Button("Create Neural Network", BTNsize))
+				if (ImGui::Button("Create Neural Network", ButtonSize))
 				{					
 					CreateNeuralNetwork();
 				}
@@ -141,8 +140,7 @@ int main() {
 							INPUTdata = new float[Input_OutputLayer[0]]();
 							OUTPUTdata = new float[Input_OutputLayer[1]]();			
 							hiddenLayerSize = NN->no_layers - 2;
-							CTRLPNL = true;
-							TexLYRparts = WinPOS.y / ((hiddenLayerSize + 2) * 2 - 1) - 20;
+							controlPanel = true;
 
 							TriggerNetwork(NN);
 						}
@@ -166,7 +164,7 @@ int main() {
 				const char* activationNames[] = {"Sigmoid", "TanH", "ReLu"};
 				ImGui::Text("Activation: %s", activationNames[activationType]);
 				ImGui::Separator();
-				if (ImGui::Button("Delete Neural Network", BTNsize))
+				if (ImGui::Button("Delete Neural Network", ButtonSize))
 				{
 					DeleteNeuralNetwork();
 				}
@@ -189,24 +187,24 @@ int main() {
 		ImGui::SetNextWindowPos({ 2,WinPOS.y + 40 });
 
 		//neural network control panel
-		ImGui::Begin("Neural Network Control Panel",NULL, ImGuiWindowFlags_NoResize);
+		ImGui::Begin("Neural Network Control Panel",nullptr, ImGuiWindowFlags_NoResize);
 		{
-			NNCTRLsize.y = WinPOS.x - ImGui::GetCursorPosY() - WinPOS.y - 30;
-			ImGui::SetWindowSize(NNCTRLsize);
-			if (CTRLPNL)
+			NNControlerSize.y = WinPOS.x - ImGui::GetCursorPosY() - WinPOS.y - 30;
+			ImGui::SetWindowSize(NNControlerSize);
+			if (controlPanel)
 			{
-				if (ImGui::Button("Trigger Network", BTNsize))
+				if (ImGui::Button("Trigger Network", ButtonSize))
 				{
 					//call HermisNetwork Trigger
 					TriggerNetwork(NN);
 				}
-				if (ImGui::Button("Train Network", BTNsize))
+				if (ImGui::Button("Train Network", ButtonSize))
 				{
 					// call hermisNetwork Train
-					TrainNetwork(NN, OUTPUTdata, LR);
+					TrainNetwork(NN, OUTPUTdata, learningRate);
 				}
 				ImGui::PushItemWidth(180);
-				ImGui::DragFloat("Learning Rate", &LR, 0.02f);
+				ImGui::DragFloat("Learning Rate", &learningRate, 0.02f);
 				const uint32_t step = 1;
                 if(ImGui::InputScalar("Batch Size", ImGuiDataType_U32, &NN->batchSize, &step));
                 if(ImGui::Button("Sigmoid")) {
@@ -229,7 +227,7 @@ int main() {
 
 				if (ImGui::CollapsingHeader("Network Input")) 
 				{
-					ImGui::BeginChild("INP child", { NNCTRLsize.x - 50,170 }, true);
+					ImGui::BeginChild("INP child", { NNControlerSize.x - 50,170 }, true);
 					for (int i = 0; i < Input_OutputLayer[0]; i++)
 					{
 						ImGui::PushID(i);						
@@ -239,7 +237,7 @@ int main() {
 						ImGui::PopID();
 					}
 					ImGui::EndChild();
-					if (ImGui::Button("Send Inputs", BTNsize))
+					if (ImGui::Button("Send Inputs", ButtonSize))
 					{
 						SendInputs(NN, INPUTdata);
 					}
@@ -249,7 +247,7 @@ int main() {
 				
 				if (ImGui::CollapsingHeader("Network Actual Output"))
 				{
-					ImGui::BeginChild("OUT child", { NNCTRLsize.x - 50,150 }, true);
+					ImGui::BeginChild("OUT child", { NNControlerSize.x - 50,150 }, true);
 					for (int i = 0; i < Input_OutputLayer[1]; i++)
 					{
 						ImGui::PushID(i);
@@ -276,9 +274,9 @@ int main() {
 		ImGui::SetNextWindowSize(WinPOS);
 
 		//neural nework live image
-		ImGui::Begin("Neural Network Live Image", NULL, ImGuiWindowFlags_NoResize);
+		ImGui::Begin("Neural Network Live Image", nullptr, ImGuiWindowFlags_NoResize);
 		{									
-			if (CTRLPNL)
+			if (controlPanel)
 			{								
 				WinPOS.x -= 40;
 				
@@ -341,7 +339,7 @@ int main() {
 							glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 						}
 						HermesNetwork::fetchLayerWeights_Bias(L);						
-						/*if (NEURONS_DATA == NULL)
+						/*if (NEURONS_DATA == nullptr)
 							NEURONS_DATA = HermesNetwork::getWeights_Bias(NN, i + 1);*/
 						ImGui::BeginChild("HL Weights Data", { 300,40 }, true, ImGuiWindowFlags_HorizontalScrollbar);
 						for (int j = 0; j < L->no_weight; j++)
@@ -371,9 +369,9 @@ int main() {
 						}
 						if (ImGui::Selectable("Train Layer"))
 						{
-							HermesNetwork::trainLayer(L, &LR);
+							HermesNetwork::trainLayer(L, &learningRate);
 						}
-						/*if (NEURONS_DATA == NULL)
+						/*if (NEURONS_DATA == nullptr)
 							NEURONS_DATA = HermesNetwork::getLayerNeuronsData(NN, i+1);*/
 						HermesNetwork::fetchLayerNeuronsData(L);
 						ImGui::BeginChild("Neurons Data", { 300,40 }, true, ImGuiWindowFlags_HorizontalScrollbar);
@@ -404,7 +402,7 @@ int main() {
 						glDispatchCompute(L->no_weight, 1, 1);
 						glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 					}
-					/*if (NEURONS_DATA == NULL)
+					/*if (NEURONS_DATA == nullptr)
 						NEURONS_DATA = HermesNetwork::getWeights_Bias(NN, NN->no_layers - 1);*/
 					HermesNetwork::fetchLayerWeights_Bias(L);
 
@@ -435,9 +433,9 @@ int main() {
 					}
 					if (ImGui::Selectable("Train Layer"))
 					{
-						HermesNetwork::trainLayer(NN->outputLayer, &LR);
+						HermesNetwork::trainLayer(NN->outputLayer, &learningRate);
 					}
-					/*if (NEURONS_DATA == NULL)
+					/*if (NEURONS_DATA == nullptr)
 						NEURONS_DATA = HermesNetwork::getLayerNeuronsData(NN,NN->no_layers-1);*/
 					HermesNetwork::fetchLayerNeuronsData(L);
 					//else
@@ -455,8 +453,8 @@ int main() {
 				}
 				else
 				{
-					/*if (NEURONS_DATA != NULL)
-						NEURONS_DATA = NULL;		*/
+					/*if (NEURONS_DATA != nullptr)
+						NEURONS_DATA = nullptr;		*/
 					
 				}
 			}
@@ -465,6 +463,7 @@ int main() {
 
 		DrawPingPong();	
 		DrawLogicGateTrainer();
+		ImGui::ShowDemoWindow();
 		
 		ImGui::EndCleanWindow(window);
 	}
@@ -478,8 +477,7 @@ int main() {
 void CreateNeuralNetwork() {
 	INPUTdata = new float[Input_OutputLayer[0]]();
 	OUTPUTdata = new float[Input_OutputLayer[1]]();
-	CTRLPNL = true;
-	TexLYRparts = WinPOS.y / ((hiddenLayers.size() + 2) * 2 - 1) - 20;
+	controlPanel = true;
 
 	GLint whichID, fbID;
 	glGetIntegerv(GL_TEXTURE_BINDING_2D, &whichID);
@@ -493,10 +491,11 @@ void DeleteNeuralNetwork() {
 	Input_OutputLayer[0] = 1;
 	Input_OutputLayer[1] = 1;
 	hiddenLayers.clear();
+	activationType = ActivationType::Sigmoid;
 	hiddenLayerSize = 0;
-	CTRLPNL = false;
+	controlPanel = false;
 	delete NN;
-	NN = NULL;
+	NN = nullptr;
 }
 
 
@@ -664,7 +663,7 @@ void DrawLogicGateTrainer() {
 						outIdx ++;						
 					}
 
-					TrainNetwork(NN, OUTPUTdata, LR);
+					TrainNetwork(NN, OUTPUTdata, learningRate);
 
 					LogicGateTrainer::inpIndex ++;
 					if(LogicGateTrainer::inpIndex > 3)
