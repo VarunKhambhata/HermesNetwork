@@ -4,7 +4,8 @@ No GPU configuration and selection is required as OpenGL drivers will handle all
 
 <br>
 <p align="center"> <i> Hermes Network Inspector is a software built using HeremsNetwok Library </i> </p>
-<img width="1000" height="800" alt="Hermesnetwork-Inspector" src="https://github.com/user-attachments/assets/4fdad2c5-68b5-44ab-8c6c-a95b93375a4c" />
+<img width="1000" height="800" alt="Hermesnetwork-Inspector png" src="https://github.com/user-attachments/assets/d02025bf-67e9-463a-a71b-8ef695c92525" />
+
 
 <p align="center"> <i> Ping Pong game played by 2 neural network in Hermes Network Inspector </i> </p>
 
