@@ -133,17 +133,19 @@ int main() {
 					if (ImGui::Button("Load") && FILE[0] != '\0')
 					{
 						NN = LoadNetwork(FILE);
-						std::fill_n(FILE, 50, '\0');
+						if(NN != nullptr) {
+							std::fill_n(FILE, 50, '\0');
 
-						Input_OutputLayer[0] = NN->inputLayer->no_neuron;
-						Input_OutputLayer[1] = NN->outputLayer->no_neuron;
-						INPUTdata = new float[Input_OutputLayer[0]]();
-						OUTPUTdata = new float[Input_OutputLayer[1]]();			
-						hiddenLayerSize = NN->no_layers - 2;
-						CTRLPNL = true;
-						TexLYRparts = WinPOS.y / ((hiddenLayerSize + 2) * 2 - 1) - 20;
+							Input_OutputLayer[0] = NN->inputLayer->no_neuron;
+							Input_OutputLayer[1] = NN->outputLayer->no_neuron;
+							INPUTdata = new float[Input_OutputLayer[0]]();
+							OUTPUTdata = new float[Input_OutputLayer[1]]();			
+							hiddenLayerSize = NN->no_layers - 2;
+							CTRLPNL = true;
+							TexLYRparts = WinPOS.y / ((hiddenLayerSize + 2) * 2 - 1) - 20;
 
-						TriggerNetwork(NN);
+							TriggerNetwork(NN);
+						}
 					}
 				}
 			}
