@@ -5,6 +5,10 @@
 
 void Theme1();
 void DrawPingPong();
+void DrawLogicGateTrainer();
+
+void CreateNeuralNetwork();
+void DeleteNeuralNetwork();
 
 namespace PingPong
 {
@@ -27,8 +31,40 @@ namespace PingPong
 	bool nn1Learn = true, nn2Learn= true;
 }
 
-int main()
-{
+namespace LogicGateTrainer {
+	bool enable = false, end = false;
+	bool andTrain = false;
+	bool orTrain = false;
+	bool xorTrain = false;
+	int hiddenLayerSize = 0;
+	std::vector<int> hiddenLayers;
+	bool networkBuilt = false;
+
+	bool TT[4][2] = {{0,0}, {0,1}, {1,0}, {1,1}};
+	bool AND[4] = {0,0,0,1};
+	bool OR[4] = {0,1,1,1};
+	bool XOR[4] = {0,1,1,0};
+	int inpIndex = 0;
+
+	float Result[4][3];
+}
+
+NeuralNetwork NN = NULL;
+int Input_OutputLayer[2] = { 1,1 };
+int hiddenLayerSize = 0;
+std::vector<int> hiddenLayers;
+uint8_t activationType = ActivationType::Sigmoid;
+
+float* INPUTdata = NULL, * OUTPUTdata = NULL, LR = 1;
+
+bool CTRLPNL = false;
+
+ImVec2 NNStructSize = { 300,320 }, NNCTRLsize = { 300, 300 };
+ImVec2 WinPOS, BTNsize = { 280,22 };
+
+float TexLYRparts = 0;
+
+int main() {
 	GLFWwindow* window = ImGui::initGLFW(1000, 800);
 	ImGui::initImGui(window, "HermesNetwork Inspector");
 	ImGui::GetIO().IniFilename = NULL;
@@ -39,21 +75,8 @@ int main()
     if(swapInterval < 1)
         swapInterval = 1;
 	glfwSwapInterval(swapInterval);
-	
-	int Input_OutputLayer[2] = { 1,1 }, *HiddenLayer = NULL;
-	int Hsize = 0;
 
-	float* INPUT = NULL, * OUTPUT = NULL, LR = 1;
-    int batchSize = 0;
-	//float* NEURONS_DATA = NULL;
-	ImVec2 NNStructSize = { 300,320 }, NNCTRLsize = { 300, 300 };
-	ImVec2 WinPOS, BTNsize = { 280,22 };
-
-	bool CTRLPNL = false;
-	float TexLYRparts = 0;
-
-	char FILE[50] = "";
-	NeuralNetwork NN = NULL;
+	char FILE[50] = "";	
 	
 	InitNeuralLink(true);
 	
@@ -61,8 +84,7 @@ int main()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 15.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);			
 
-	while (!glfwWindowShouldClose(window))
-	{	
+	while (!glfwWindowShouldClose(window)) {
 		ImGui::StartCleanWindow(window);				
 
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {4,3});
@@ -73,21 +95,21 @@ int main()
 			ImGui::SameLine();
 			if (ImGui::Button("2")) ImGui::StyleColorsDark();
 			ImGui::SameLine();
-			if (ImGui::Button("Ping Pong Demo"))
-			{
-				PingPong::Enable = true;
-				PingPong::N1 = NetworkBuilder(3, {50}, 2);
-				PingPong::N2 = NetworkBuilder(3, {}, 2);
-				Terrify(PingPong::N1);
-				Terrify(PingPong::N2);
-				PingPong::scoreboard[0] = PingPong::scoreboard[1] = 0;
-				PingPong::speed = 1.8f;
-				PingPong::ballspeed = 6.0;
+			if (ImGui::Button("Ping Pong Demo")) {
+				if(!PingPong::Enable) {
+					PingPong::Enable = true;
+					PingPong::N1 = NetworkBuilder(3, {50}, 2);
+					PingPong::N2 = NetworkBuilder(3, {}, 2);
+					Terrify(PingPong::N1);
+					Terrify(PingPong::N2);
+					PingPong::scoreboard[0] = PingPong::scoreboard[1] = 0;
+					PingPong::speed = 1.8f;
+					PingPong::ballspeed = 6.0;
+				}
 			}
             ImGui::SameLine();
-            if(ImGui::Button("Logic Gates Trainer"))
-            {
-
+            if(ImGui::Button("Logic Gates Trainer")) {
+				LogicGateTrainer::enable = true;
             }
 		ImGui::End();
 		ImGui::PopStyleVar();
@@ -97,66 +119,32 @@ int main()
 		ImGui::Begin("Neural Network Structure", NULL ,ImGuiWindowFlags_NoResize);
 		{
 			ImGui::SetWindowSize(NNStructSize);
-			if (!CTRLPNL)
-			{				
+			if (!CTRLPNL) {
 				ImGui::Text("Input & Output Layers");
 				ImGui::DragInt2("##inp_out", Input_OutputLayer);
-				if (ImGui::CollapsingHeader("Hidden Layers"))
-				{
-					ImGui::PushItemWidth(150);
-					ImGui::InputInt("size", &Hsize, 1);
-					ImGui::PushItemWidth(100);
-					if (Hsize > 0)
-					{
+				ImGui::Text("Hidden Layers");
+				if(ImGui::InputInt("size", &hiddenLayerSize, 1, 1)) {
+					if(hiddenLayerSize < 0)
+						hiddenLayerSize = 0;
+					if(hiddenLayerSize < hiddenLayers.size())
+						hiddenLayers.pop_back();
+					if(hiddenLayerSize > hiddenLayers.size())
+						hiddenLayers.push_back(1);
+				}
+				if(ImGui::BeginChild("hl child", { 0,100 }, true)) {
+					for (int i = 0; i < hiddenLayers.size(); i++) {
+						ImGui::PushID(i);							
+						ImGui::DragInt("", &hiddenLayers[i],1);
 						ImGui::SameLine();
-						if (ImGui::Button("Create"))
-						{
-							if (HiddenLayer != NULL)
-								delete[] HiddenLayer;
-							HiddenLayer = new int[Hsize]();
-							std::fill_n(HiddenLayer, Hsize, 1);
-
-						}
+						ImGui::Text("%d",i+1);
+						ImGui::PopID();
 					}
-					if (HiddenLayer != NULL)
-					{
-						ImGui::BeginChild("hl child", { 140,100 }, true);
-						for (int i = 0; i < Hsize; i++)
-						{
-							ImGui::PushID(i);
-							ImGui::Text("%d", i); ImGui::SameLine();
-							ImGui::DragInt("", &HiddenLayer[i],1);
-
-							ImGui::PopID();
-						}
-						ImGui::EndChild();
-					}
-
-
-					ImGui::PopItemWidth();
+					ImGui::EndChild();
 				}
 				ImGui::Separator();
 				if (ImGui::Button("Create Neural Network", BTNsize))
 				{					
-					//Create hermisNetowrk
-					INPUT = new float[Input_OutputLayer[0]]();
-					OUTPUT = new float[Input_OutputLayer[1]]();
-					CTRLPNL = true;
-					TexLYRparts = WinPOS.y / ((Hsize + 2) * 2 - 1) - 20;
-
-					GLint whichID, fbID;
-					glGetIntegerv(GL_TEXTURE_BINDING_2D, &whichID);
-					glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fbID);
-
-					std::vector<int> H;
-					for (int i = 0; i < Hsize; i++) H.push_back(HiddenLayer[i]);
-					NN = NetworkBuilder(Input_OutputLayer[0], H, Input_OutputLayer[1]);
-					TriggerNetwork(NN);
-
-					/*for (int i = 0; i < Hsize; i++)
-					{
-						appendHiddenLayer(NN, HiddenLayer[i]);												
-					}*/
+					CreateNeuralNetwork();
 				}
 				
 				if (ImGui::CollapsingHeader("Load Neural Network"))
@@ -170,20 +158,11 @@ int main()
 
 						Input_OutputLayer[0] = NN->inputLayer->no_neuron;
 						Input_OutputLayer[1] = NN->outputLayer->no_neuron;
-						INPUT = new float[Input_OutputLayer[0]]();
-						OUTPUT = new float[Input_OutputLayer[1]]();			
-						Hsize = NN->no_layers - 2;
-						if (HiddenLayer != NULL)
-							delete[] HiddenLayer;
-						HiddenLayer = new int[Hsize]();
-						HermesNetwork::Layer L = NN->inputLayer->next;
-						for (int i = 0; i < Hsize; i++)
-						{
-							HiddenLayer[i] = L->no_neuron;
-							L = L->next;
-						}
+						INPUTdata = new float[Input_OutputLayer[0]]();
+						OUTPUTdata = new float[Input_OutputLayer[1]]();			
+						hiddenLayerSize = NN->no_layers - 2;
 						CTRLPNL = true;
-						TexLYRparts = WinPOS.y / ((Hsize + 2) * 2 - 1) - 20;
+						TexLYRparts = WinPOS.y / ((hiddenLayerSize + 2) * 2 - 1) - 20;
 
 						TriggerNetwork(NN);
 					}
@@ -192,27 +171,23 @@ int main()
 			
 			else
 			{
-				ImGui::Value("Input", Input_OutputLayer[0]);
-				ImGui::Value("Hidden", Hsize); ImGui::SameLine();
-				ImGui::BeginChild("HddnL", { 240 ,40 }, true, ImGuiWindowFlags_HorizontalScrollbar);
-				for (int i = 0; i < Hsize; i++)
-				{
-					ImGui::SameLine();
-					ImGui::Text("%d  ", HiddenLayer[i]);					
+				ImGui::Text("Input: %d", Input_OutputLayer[0]);
+				ImGui::Text("Hidden: %d", hiddenLayers.size());
+				if(!hiddenLayers.empty()) {
+				ImGui::BeginChild("HddnL", { 0 ,40 }, true, ImGuiWindowFlags_HorizontalScrollbar);
+					for(int sz: hiddenLayers) {
+						ImGui::SameLine();
+						ImGui::Text("%d  ", sz);
+					}
+					ImGui::EndChild();
 				}
-				ImGui::EndChild();
 				ImGui::Value("Output", Input_OutputLayer[1]);
+				const char* activationNames[] = {"Sigmoid", "TanH", "ReLu"};
+				ImGui::Text("Activation: %s", activationNames[activationType]);
 				ImGui::Separator();
 				if (ImGui::Button("Delete Neural Network", BTNsize))
 				{
-					Input_OutputLayer[0] = 1;
-					Input_OutputLayer[1] = 1;
-					delete[] HiddenLayer;					
-					HiddenLayer = NULL;
-					Hsize = 0;
-					CTRLPNL = false;
-					delete NN;
-					NN = NULL;
+					DeleteNeuralNetwork();
 				}
 				if (ImGui::CollapsingHeader("Save Neural Network"))
 				{										
@@ -223,8 +198,7 @@ int main()
 						SaveNetwork(NN, FILE);
 						std::fill_n(FILE, 50, '\0');
 					}
-				}
-				
+				}				
 			}
 		}
 		WinPOS = ImGui::GetWindowSize();
@@ -248,18 +222,26 @@ int main()
 				if (ImGui::Button("Train Network", BTNsize))
 				{
 					// call hermisNetwork Train
-					TrainNetwork(NN, OUTPUT, LR);
+					TrainNetwork(NN, OUTPUTdata, LR);
 				}
 				ImGui::PushItemWidth(180);
 				ImGui::DragFloat("Learning Rate", &LR, 0.02f);
-                if(ImGui::InputInt("Batch Size", &batchSize, 1)) {
-                    if(batchSize < 0) batchSize = 0;
-                }
-                ImGui::Button("Sigmod");
+				const uint32_t step = 1;
+                if(ImGui::InputScalar("Batch Size", ImGuiDataType_U32, &NN->batchSize, &step));
+                if(ImGui::Button("Sigmoid")) {
+					activationType = ActivationType::Sigmoid;
+					SetActivation(NN, ActivationType::Sigmoid);
+				}
                 ImGui::SameLine();
-                ImGui::Button("Tan");
+                if(ImGui::Button("TanH")) {
+					activationType = ActivationType::TanH;
+					SetActivation(NN, ActivationType::TanH);
+				}
                 ImGui::SameLine();
-                ImGui::Button("ReLu");
+                if(ImGui::Button("ReLu")) {
+					activationType = ActivationType::ReLu;
+					SetActivation(NN, ActivationType::ReLu, ActivationType::Sigmoid);
+				}
 				ImGui::NewLine();
 				ImGui::Separator();
 				
@@ -269,15 +251,16 @@ int main()
 					ImGui::BeginChild("INP child", { NNCTRLsize.x - 50,170 }, true);
 					for (int i = 0; i < Input_OutputLayer[0]; i++)
 					{
-						ImGui::PushID(i);
-						ImGui::Text("%d", i); ImGui::SameLine();
-						ImGui::DragFloat("", &INPUT[i],0.1f);
+						ImGui::PushID(i);						
+						ImGui::DragFloat("", &INPUTdata[i],0.1f);
+						ImGui::SameLine();
+						ImGui::Text("%d", i);
 						ImGui::PopID();
 					}
 					ImGui::EndChild();
 					if (ImGui::Button("Send Inputs", BTNsize))
 					{
-						SendInputs(NN, INPUT);
+						SendInputs(NN, INPUTdata);
 					}
 				}
 				
@@ -290,7 +273,7 @@ int main()
 					{
 						ImGui::PushID(i);
 						ImGui::Text("%d", i); ImGui::SameLine();
-						ImGui::DragFloat("", &OUTPUT[i], 0.01f,0,1);
+						ImGui::DragFloat("", &OUTPUTdata[i], 0.01f,0,1);
 						ImGui::PopID();
 					}
 					ImGui::EndChild();					
@@ -324,8 +307,7 @@ int main()
 
 				HermesNetwork::Layer L = NN->inputLayer;
 				
-				for (int i = 0; i < Hsize; i++)
-				{
+				for (int i = 0; i < hiddenLayers.size(); i++) {
 					L = L->next;
 					ImGui::Text("w"); ImGui::SameLine();
 					ImGui::Image((ImTextureID)L->WeightsTex, { WinPOS.x,15 });
@@ -360,8 +342,7 @@ int main()
 					ImGui::OpenPopup("outL_DT");
 	
 				L = NN->inputLayer;
-				for (int i = 0; i < Hsize; i++)
-				{
+				for (int i = 0; i < hiddenLayers.size(); i++) {
 					L = L->next;
 					ImGui::PushID(-(i+1));
 					if (ImGui::BeginPopup(""))
@@ -415,7 +396,7 @@ int main()
 							NEURONS_DATA = HermesNetwork::getLayerNeuronsData(NN, i+1);*/
 						HermesNetwork::fetchLayerNeuronsData(L);
 						ImGui::BeginChild("Neurons Data", { 300,40 }, true, ImGuiWindowFlags_HorizontalScrollbar);
-						for (int j = 0; j < HiddenLayer[i]; j++)
+						for (int j = 0; j < hiddenLayers[i]; j++)
 						{
 							ImGui::TextColored({ 1,0,0,1 }, "%f ", L->data[j]);
 							ImGui::SameLine();
@@ -469,7 +450,7 @@ int main()
 					}
 					if (ImGui::Selectable("Generate Error"))
 					{
-						HermesNetwork::calcError(NN->outputLayer, OUTPUT);
+						HermesNetwork::calcError(NN->outputLayer, OUTPUTdata);
 					}
 					if (ImGui::Selectable("Train Layer"))
 					{
@@ -497,23 +478,12 @@ int main()
 						NEURONS_DATA = NULL;		*/
 					
 				}
-				
-				
-
 			}
 		}
 		ImGui::End();
 
-
-
-		if (PingPong::Enable)
-		{						
-			ImGui::Begin("Ping Pong EvE", &PingPong::Enable, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar);
-			ImGui::SetWindowSize({ 940, 600 });
-			DrawPingPong();
-			ImGui::End();
-			
-		}
+		DrawPingPong();	
+		DrawLogicGateTrainer();
 		
 		ImGui::EndCleanWindow(window);
 	}
@@ -521,6 +491,31 @@ int main()
 	ImGui::terminateImGui();
 	ImGui::terminateGLFW(window);
 	return 0;
+}
+
+
+void CreateNeuralNetwork() {
+	INPUTdata = new float[Input_OutputLayer[0]]();
+	OUTPUTdata = new float[Input_OutputLayer[1]]();
+	CTRLPNL = true;
+	TexLYRparts = WinPOS.y / ((hiddenLayers.size() + 2) * 2 - 1) - 20;
+
+	GLint whichID, fbID;
+	glGetIntegerv(GL_TEXTURE_BINDING_2D, &whichID);
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fbID);
+
+	NN = NetworkBuilder(Input_OutputLayer[0], hiddenLayers, Input_OutputLayer[1]);
+	TriggerNetwork(NN);
+}
+
+void DeleteNeuralNetwork() {
+	Input_OutputLayer[0] = 1;
+	Input_OutputLayer[1] = 1;
+	hiddenLayers.clear();
+	hiddenLayerSize = 0;
+	CTRLPNL = false;
+	delete NN;
+	NN = NULL;
 }
 
 
@@ -587,111 +582,66 @@ void Theme1()
 
 
 
-void DrawPingPong()
-{
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 2,1 });
-	float ZZ[] = { 0,0, 1 }, YY[] = { 0,0.3 };
-		//Neural Net1 working//////////////
-		PingPong::input[0] = PingPong::ballpos.y / 550;
-		PingPong::input[1] = PingPong::plr1Pos / 550;
-		PingPong::input[2] = PingPong::ballangle;
-		SendInputs(PingPong::N1, PingPong::input);
-		TriggerNetwork(PingPong::N1);
-		//PingPong::out1 = 
-		FetchOutputLayerData(PingPong::N1);
-		/////////////////////////////////////////
-		//Neural Net2 working//////////////
-		PingPong::input[1] = PingPong::plr2Pos / 550;
-		SendInputs(PingPong::N2, PingPong::input);
-		TriggerNetwork(PingPong::N2);
-		//PingPong::out2 = GetOutputLayerData(PingPong::N2);
-		FetchOutputLayerData(PingPong::N2);
-		/////////////////////////////////////////
+void DrawPingPong() {
+	if(PingPong::Enable) {
+		if(ImGui::Begin("Ping Pong EvE", &PingPong::Enable, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar)) {
+			ImGui::SetWindowSize({ 940, 600 });
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 2,1 });
+			float ZZ[] = { 0,0, 1 }, YY[] = { 0,0.3 };
+			//Neural Net1 working//////////////
+			PingPong::input[0] = PingPong::ballpos.y / 550;
+			PingPong::input[1] = PingPong::plr1Pos / 550;
+			PingPong::input[2] = PingPong::ballangle;
+			SendInputs(PingPong::N1, PingPong::input);
+			TriggerNetwork(PingPong::N1);
+			//PingPong::out1 = 
+			FetchOutputLayerData(PingPong::N1);
+			/////////////////////////////////////////
+			//Neural Net2 working//////////////
+			PingPong::input[1] = PingPong::plr2Pos / 550;
+			SendInputs(PingPong::N2, PingPong::input);
+			TriggerNetwork(PingPong::N2);
+			//PingPong::out2 = GetOutputLayerData(PingPong::N2);
+			FetchOutputLayerData(PingPong::N2);
+			/////////////////////////////////////////
 
 
-		//input
-		if (PingPong::N1->Out[0] > PingPong::N1->Out[1])
-			PingPong::plr1Pos += -6.2 * PingPong::speed;
-		else
-			PingPong::plr1Pos += 6.2 * PingPong::speed;
-
-		if (PingPong::N2->Out[0] > PingPong::N2->Out[1])
-			PingPong::plr2Pos += -6.2 * PingPong::speed;
-		else
-			PingPong::plr2Pos += 6.2 * PingPong::speed;
-
-		//calc physics
-		if (PingPong::plr1Pos < 30)
-			PingPong::plr1Pos = 30;
-		if (PingPong::plr1Pos > 380)
-			PingPong::plr1Pos = 380;
-
-		if (PingPong::plr2Pos < 30)
-			PingPong::plr2Pos = 30;
-		if (PingPong::plr2Pos > 380)
-			PingPong::plr2Pos = 380;
-
-		if (!PingPong::pause)
-		{
-			PingPong::ballpos.x += PingPong::ballspeed;
-			PingPong::ballpos.y += PingPong::ballangle;
-
-		}
-
-		if (PingPong::ballpos.x < 40 && PingPong::ballpos.y > PingPong::plr1Pos && PingPong::ballpos.y < PingPong::plr1Pos + 200)
-		{
-			PingPong::ballspeed *= -1;
-			PingPong::ballspeed += 0.8;
-			PingPong::ballangle += (PingPong::plr1Pos + 100 - PingPong::ballpos.x) / 270;
-
-			//Acknowledge
-			if (PingPong::ballpos.y < PingPong::plr1Pos + 100)
-			{
-				PingPong::actualOUT[0] = 1;
-				PingPong::actualOUT[1] = 0;
-			}
+			//input
+			if (PingPong::N1->Out[0] > PingPong::N1->Out[1])
+				PingPong::plr1Pos += -6.2 * PingPong::speed;
 			else
-			{
-				PingPong::actualOUT[0] = 0;
-				PingPong::actualOUT[1] = 1;
-			}
-			if(PingPong::nn1Learn)
-				TrainNetwork(PingPong::N1, PingPong::actualOUT, PingPong::ACK);
-			//HermesNetwork::trainLayer(N1->outputLayer, actualOUT, &ACK);
-		}
-		if (PingPong::ballpos.x > 750 && PingPong::ballpos.y > PingPong::plr2Pos && PingPong::ballpos.y < PingPong::plr2Pos + 200)
-		{
-			PingPong::ballspeed *= -1;
-			PingPong::ballspeed -= 0.8;
-			PingPong::ballangle += (PingPong::plr2Pos + 100 - PingPong::ballpos.x) / 270;
+				PingPong::plr1Pos += 6.2 * PingPong::speed;
 
-			//Acknowledge
-			if (PingPong::ballpos.y < PingPong::plr2Pos + 100)
-			{
-				PingPong::actualOUT[0] = 1;
-				PingPong::actualOUT[1] = 0;
-			}
+			if (PingPong::N2->Out[0] > PingPong::N2->Out[1])
+				PingPong::plr2Pos += -6.2 * PingPong::speed;
 			else
+				PingPong::plr2Pos += 6.2 * PingPong::speed;
+
+			//calc physics
+			if (PingPong::plr1Pos < 30)
+				PingPong::plr1Pos = 30;
+			if (PingPong::plr1Pos > 380)
+				PingPong::plr1Pos = 380;
+
+			if (PingPong::plr2Pos < 30)
+				PingPong::plr2Pos = 30;
+			if (PingPong::plr2Pos > 380)
+				PingPong::plr2Pos = 380;
+
+			if (!PingPong::pause)
 			{
-				PingPong::actualOUT[0] = 0;
-				PingPong::actualOUT[1] = 1;
+				PingPong::ballpos.x += PingPong::ballspeed;
+				PingPong::ballpos.y += PingPong::ballangle;
+
 			}
-			if(PingPong::nn2Learn)
-				TrainNetwork(PingPong::N2, PingPong::actualOUT, PingPong::ACK);
-			//HermesNetwork::trainLayer(N2->outputLayer, actualOUT, &ACK);
-		}
-		if (PingPong::ballpos.y > 560 || PingPong::ballpos.y < 25)
-			PingPong::ballangle *= -1;
 
-
-			
-
-
-		if (PingPong::ballpos.x > 800 || PingPong::ballpos.x < 0)
-		{
-			//train
-			if (PingPong::ballpos.x < 0)
+			if (PingPong::ballpos.x < 40 && PingPong::ballpos.y > PingPong::plr1Pos && PingPong::ballpos.y < PingPong::plr1Pos + 200)
 			{
+				PingPong::ballspeed *= -1;
+				PingPong::ballspeed += 0.8;
+				PingPong::ballangle += (PingPong::plr1Pos + 100 - PingPong::ballpos.x) / 270;
+
+				//Acknowledge
 				if (PingPong::ballpos.y < PingPong::plr1Pos + 100)
 				{
 					PingPong::actualOUT[0] = 1;
@@ -702,14 +652,17 @@ void DrawPingPong()
 					PingPong::actualOUT[0] = 0;
 					PingPong::actualOUT[1] = 1;
 				}
-
 				if(PingPong::nn1Learn)
-					TrainNetwork(PingPong::N1, PingPong::actualOUT, PingPong::LR);
-				//HermesNetwork::trainLayer(N1->outputLayer, actualOUT, &LR);
+					TrainNetwork(PingPong::N1, PingPong::actualOUT, PingPong::ACK);
+				//HermesNetwork::trainLayer(N1->outputLayer, actualOUT, &ACK);
 			}
-
-			if (PingPong::ballpos.x > 800)
+			if (PingPong::ballpos.x > 750 && PingPong::ballpos.y > PingPong::plr2Pos && PingPong::ballpos.y < PingPong::plr2Pos + 200)
 			{
+				PingPong::ballspeed *= -1;
+				PingPong::ballspeed -= 0.8;
+				PingPong::ballangle += (PingPong::plr2Pos + 100 - PingPong::ballpos.x) / 270;
+
+				//Acknowledge
 				if (PingPong::ballpos.y < PingPong::plr2Pos + 100)
 				{
 					PingPong::actualOUT[0] = 1;
@@ -720,120 +673,332 @@ void DrawPingPong()
 					PingPong::actualOUT[0] = 0;
 					PingPong::actualOUT[1] = 1;
 				}
-
 				if(PingPong::nn2Learn)
-					TrainNetwork(PingPong::N2, PingPong::actualOUT, PingPong::LR);				
-				//PingPong::pause = true;
-				//HermesNetwork::trainLayer(N2->outputLayer, actualOUT, &LR);
+					TrainNetwork(PingPong::N2, PingPong::actualOUT, PingPong::ACK);
+				//HermesNetwork::trainLayer(N2->outputLayer, actualOUT, &ACK);
+			}
+			if (PingPong::ballpos.y > 560 || PingPong::ballpos.y < 25)
+				PingPong::ballangle *= -1;
+
+
+				
+
+
+			if (PingPong::ballpos.x > 800 || PingPong::ballpos.x < 0)
+			{
+				//train
+				if (PingPong::ballpos.x < 0)
+				{
+					if (PingPong::ballpos.y < PingPong::plr1Pos + 100)
+					{
+						PingPong::actualOUT[0] = 1;
+						PingPong::actualOUT[1] = 0;
+					}
+					else
+					{
+						PingPong::actualOUT[0] = 0;
+						PingPong::actualOUT[1] = 1;
+					}
+
+					if(PingPong::nn1Learn)
+						TrainNetwork(PingPong::N1, PingPong::actualOUT, PingPong::LR);
+					//HermesNetwork::trainLayer(N1->outputLayer, actualOUT, &LR);
+				}
+
+				if (PingPong::ballpos.x > 800)
+				{
+					if (PingPong::ballpos.y < PingPong::plr2Pos + 100)
+					{
+						PingPong::actualOUT[0] = 1;
+						PingPong::actualOUT[1] = 0;
+					}
+					else
+					{
+						PingPong::actualOUT[0] = 0;
+						PingPong::actualOUT[1] = 1;
+					}
+
+					if(PingPong::nn2Learn)
+						TrainNetwork(PingPong::N2, PingPong::actualOUT, PingPong::LR);				
+					//PingPong::pause = true;
+					//HermesNetwork::trainLayer(N2->outputLayer, actualOUT, &LR);
+				}
+
+				if (PingPong::ballspeed > 0)
+					PingPong::scoreboard[0] += 1;
+				else
+					PingPong::scoreboard[1] += 1;
+				PingPong::pause = true;
+				PingPong::ballpos = { 400,300 };
+				PingPong::ballangle = (int)((glfwGetTime()));
+				PingPong::ballangle = (int)PingPong::ballangle % 20;
 			}
 
-			if (PingPong::ballspeed > 0)
-				PingPong::scoreboard[0] += 1;
-			else
-				PingPong::scoreboard[1] += 1;
-			PingPong::pause = true;
-			PingPong::ballpos = { 400,300 };
-			PingPong::ballangle = (int)((glfwGetTime()));
-			PingPong::ballangle = (int)PingPong::ballangle % 20;
+
+			if (PingPong::ballspeed > 10.f)
+				PingPong::ballspeed = 10.0f;
+
+			//automatic continue
+			if (PingPong::pause)
+			{
+				PingPong::pause = false;
+				//PingPong::ballangle *= -1;
+
+			}
+
+
+			
+			//draw
+			ImGui::BeginChild("box", { 785,550 }, true);
+			ImGui::EndChild();
+
+
+
+			ImGui::PushStyleColor(ImGuiCol_ChildBg, { 0.6,0.6,0.6,1 });
+			ImGui::PushStyleColor(ImGuiCol_Text, { 0,0,0,1 });
+			ImGui::SetCursorPos({ 10,PingPong::plr1Pos });
+			ImGui::BeginChild("a", { 30,200 }, true);
+			/*ImGui::Text(" ^\n |");
+			ImGui::Text("\n\n\n\n\n\n\n\n\n\ |\n V");*/
+			ImGui::EndChild();
+
+			//right plank
+			ImGui::SetCursorPos({ 760,PingPong::plr2Pos });
+			ImGui::BeginChild("b", { 30,200 }, true);
+			/*ImGui::Text("Z");
+			ImGui::Text("\n\n\n\n\n\n\n\n\n\n\nC");*/
+			ImGui::EndChild();
+			ImGui::PopStyleColor(2);
+
+
+
+
+			//scoreboard
+			ImGui::SetCursorPos({ 350, 220 });
+			ImGui::BeginChild("scr", { 200,200 });
+
+			ImGui::SetWindowFontScale(5);
+			ImGui::Text("%d:%d", PingPong::scoreboard[0], PingPong::scoreboard[1]);
+			ImGui::SetWindowFontScale(1);
+			if (PingPong::pause) ImGui::Text("   Press Enter");
+			ImGui::EndChild();
+
+			//ball
+			ImGui::PushStyleColor(ImGuiCol_ChildBg, { 0.6,0.9,0.6,1 });
+			ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 100);
+			ImGui::SetCursorPos(PingPong::ballpos);
+			ImGui::BeginChild("o", { 20,20 }, true);
+			ImGui::EndChild();
+			ImGui::PopStyleVar();
+			ImGui::PopStyleColor();
+
+			// Network Images			
+			ImGui::SetCursorPosX(820);
+			ImGui::SetCursorPosY(30);
+			ImGui::Text("Left Plank's NN");
+			ImGui::SetCursorPosX(820);
+			ImGui::Checkbox("Learn", &PingPong::nn1Learn);        
+			ImGui::SameLine();
+			ImGui::Button("Reset");
+			ImGui::SetCursorPosX(820);
+			ImGui::Image((ImTextureID)PingPong::N1->inputLayer->NeuronsTex, { 100,20 });
+			PingPong::L = PingPong::N1->inputLayer->next;
+			for (int i = 1; i < PingPong::N1->no_layers; i++)
+			{
+				ImGui::SetCursorPosX(820);
+				ImGui::Image((ImTextureID)PingPong::L->WeightsTex, { 100,20 });
+				ImGui::SetCursorPosX(820);
+				ImGui::Image((ImTextureID)PingPong::L->NeuronsTex, { 100,20 });
+				PingPong::L = PingPong::L->next;
+			}
+
+
+			ImGui::SetCursorPosX(820);
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 30);
+			ImGui::Text("Right Plank's NN");
+			ImGui::SetCursorPosX(820);
+			ImGui::Checkbox("Learn ", &PingPong::nn2Learn);
+			ImGui::SameLine();
+			ImGui::Button("Reset");
+			ImGui::SetCursorPosX(820);
+			ImGui::Image((ImTextureID)PingPong::N2->inputLayer->NeuronsTex, { 100,20 });
+			PingPong::L = PingPong::N2->inputLayer->next;
+			for (int i = 1; i < PingPong::N2->no_layers; i++)
+			{
+				ImGui::SetCursorPosX(820);
+				ImGui::Image((ImTextureID)PingPong::L->WeightsTex, { 100,20 });
+				ImGui::SetCursorPosX(820);
+				ImGui::Image((ImTextureID)PingPong::L->NeuronsTex, { 100,20 });
+				PingPong::L = PingPong::L->next;
+			}
+
+			ImGui::PopStyleVar();
+			ImGui::End();
 		}
 
+		if(!PingPong::Enable) {
+			delete PingPong::N1;
+			delete PingPong::N2;
+			PingPong::N1 = NULL;
+			PingPong::N2 = NULL;
+		}
+	}
+}
 
-		if (PingPong::ballspeed > 10.f)
-			PingPong::ballspeed = 10.0f;
 
-		//automatic continue
-		if (PingPong::pause)
-		{
-			PingPong::pause = false;
-			//PingPong::ballangle *= -1;
+void DrawLogicGateTrainer() {
+	if(LogicGateTrainer::enable) {
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20,20));
+		if(ImGui::Begin("Logic Gate Trainer", &LogicGateTrainer::enable, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar)) {
+			if(!LogicGateTrainer::networkBuilt) {
+				ImGui::Checkbox("AND", &LogicGateTrainer::andTrain);
+				ImGui::SameLine();
+				ImGui::Checkbox("OR",&LogicGateTrainer::orTrain);
+				ImGui::SameLine();
+				ImGui::Checkbox("XOR",&LogicGateTrainer::xorTrain);
+				ImGui::SetNextItemWidth(120);
 
+				int outputs = LogicGateTrainer::andTrain + LogicGateTrainer::orTrain + LogicGateTrainer::xorTrain;
+
+				ImGui::Text("Hidden Layers");
+				if(ImGui::InputInt("size", &LogicGateTrainer::hiddenLayerSize, 1, 1)) {
+					if(LogicGateTrainer::hiddenLayerSize < 0)
+						LogicGateTrainer::hiddenLayerSize = 0;
+					if(LogicGateTrainer::hiddenLayerSize < LogicGateTrainer::hiddenLayers.size())
+						LogicGateTrainer::hiddenLayers.pop_back();
+					if(LogicGateTrainer::hiddenLayerSize > LogicGateTrainer::hiddenLayers.size())
+						LogicGateTrainer::hiddenLayers.push_back(1);
+				}
+				if(ImGui::BeginChild("hl child", { 0,100 }, true)) {
+					for (int i = 0; i < LogicGateTrainer::hiddenLayers.size(); i++) {
+						ImGui::PushID(i);							
+						ImGui::DragInt("", &LogicGateTrainer::hiddenLayers[i],1);
+						ImGui::SameLine();
+						ImGui::Text("%d",i+1);
+						ImGui::PopID();
+					}
+					ImGui::EndChild();
+				}
+
+				if(outputs > 0 && ImGui::Button("Build Network")) {
+					DeleteNeuralNetwork();
+					LogicGateTrainer::networkBuilt = true;
+					Input_OutputLayer[0] = 2;
+					Input_OutputLayer[1] = outputs;
+					hiddenLayers = LogicGateTrainer::hiddenLayers;
+					CreateNeuralNetwork();
+				}
+			}
+			else {
+				if (ImGui::BeginTable("TT", 2 + Input_OutputLayer[1], ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
+					ImGui::TableSetupColumn("A   ");
+					ImGui::TableSetupColumn("B   ");
+					if(LogicGateTrainer::andTrain)
+						ImGui::TableSetupColumn("AND  ");
+					if(LogicGateTrainer::orTrain)
+						ImGui::TableSetupColumn("OR  ");
+					if(LogicGateTrainer::xorTrain)
+						ImGui::TableSetupColumn("XOR  ");
+
+					ImGui::TableHeadersRow();
+					
+					for(int i = 0; i < 4; i++) {
+						ImGui::TableNextRow();
+						for(int j = 0; j < 2; j++) {
+							ImGui::TableNextColumn();
+							ImGui::Text("%d", LogicGateTrainer::TT[i][j]);
+						}
+
+						for(int k = 0; k < Input_OutputLayer[1]; k++) {
+							ImGui::TableNextColumn();
+							ImGui::Text("%f", LogicGateTrainer::Result[i][k]);
+							ImU32 cell_bg_color;
+							if(LogicGateTrainer::Result[i][k] > 0.5f)
+								cell_bg_color = ImGui::GetColorU32(ImVec4(0.3f, 0.3f, 0.7f, 0.65f));
+							else
+								cell_bg_color = ImGui::GetColorU32(ImVec4(0.7f, 0.3f, 0.3f, 0.65f));
+                        	ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, cell_bg_color);
+						}
+						
+					}
+					ImGui::EndTable();
+				}
+
+				ImGui::Spacing();
+				ImGui::Button("Learn [click & hold]");
+				if(ImGui::IsItemActive()) {
+					INPUTdata[0] = LogicGateTrainer::TT[LogicGateTrainer::inpIndex][0];
+					INPUTdata[1] = LogicGateTrainer::TT[LogicGateTrainer::inpIndex][1];
+					SendInputs(NN, INPUTdata);
+					TriggerNetwork(NN);
+					FetchOutputLayerData(NN);
+
+					for(int k = 0; k < Input_OutputLayer[1]; k++) {
+						LogicGateTrainer::Result[LogicGateTrainer::inpIndex][k] = NN->Out[k];
+					}
+
+					int outIdx = 0;
+					if(LogicGateTrainer::andTrain) {
+						OUTPUTdata[outIdx] = LogicGateTrainer::AND[LogicGateTrainer::inpIndex];
+						outIdx ++;
+					}
+					if(LogicGateTrainer::orTrain) {
+						OUTPUTdata[outIdx] = LogicGateTrainer::OR[LogicGateTrainer::inpIndex];
+						outIdx ++;
+					}
+					if(LogicGateTrainer::xorTrain) {
+						OUTPUTdata[outIdx] = LogicGateTrainer::XOR[LogicGateTrainer::inpIndex];
+						outIdx ++;						
+					}
+
+					TrainNetwork(NN, OUTPUTdata, LR);
+
+					LogicGateTrainer::inpIndex ++;
+					if(LogicGateTrainer::inpIndex > 3)
+						LogicGateTrainer::inpIndex = 0;
+				}
+
+				if(ImGui::Button("Trigger")) {
+					for(int i = 0; i < 4; i ++) {
+						INPUTdata[0] = LogicGateTrainer::TT[i][0];
+						INPUTdata[1] = LogicGateTrainer::TT[i][1];
+						
+						SendInputs(NN, INPUTdata);
+						TriggerNetwork(NN);
+						FetchOutputLayerData(NN);
+
+						for(int k = 0; k < Input_OutputLayer[1]; k++) {
+							LogicGateTrainer::Result[i][k] = NN->Out[k];
+						}
+					}
+				}
+				ImGui::SameLine();
+				if(ImGui::Button("Clear")) {
+					for(int k = 0; k < Input_OutputLayer[1]; k++) {
+						for(int i = 0; i < 4; i++) {
+							LogicGateTrainer::Result[i][k] = 0;
+						}
+					}
+				}
+			}
+			ImGui::End();
 		}
 
+		if(!LogicGateTrainer::enable) {
+			LogicGateTrainer::andTrain = false;
+			LogicGateTrainer::orTrain = false;
+			LogicGateTrainer::xorTrain = false;
+			LogicGateTrainer::hiddenLayerSize = 0;
+			LogicGateTrainer::hiddenLayers.clear();
+			LogicGateTrainer::networkBuilt = false;
+			LogicGateTrainer::inpIndex = 0;
+			for(int i = 0; i < 4; i++) {
+				for(int j = 0; j < 3; j ++) {
+					LogicGateTrainer::Result[i][j] = 0;
+				}
+			}
+		}
 
-		
-		//draw
-		ImGui::BeginChild("box", { 785,550 }, true);
-		ImGui::EndChild();
-
-
-
-		ImGui::PushStyleColor(ImGuiCol_ChildBg, { 0.6,0.6,0.6,1 });
-		ImGui::PushStyleColor(ImGuiCol_Text, { 0,0,0,1 });
-		ImGui::SetCursorPos({ 10,PingPong::plr1Pos });
-		ImGui::BeginChild("a", { 30,200 }, true);
-		/*ImGui::Text(" ^\n |");
-		ImGui::Text("\n\n\n\n\n\n\n\n\n\ |\n V");*/
-		ImGui::EndChild();
-
-		//right plank
-		ImGui::SetCursorPos({ 760,PingPong::plr2Pos });
-		ImGui::BeginChild("b", { 30,200 }, true);
-		/*ImGui::Text("Z");
-		ImGui::Text("\n\n\n\n\n\n\n\n\n\n\nC");*/
-		ImGui::EndChild();
-		ImGui::PopStyleColor(2);
-
-
-
-
-		//scoreboard
-		ImGui::SetCursorPos({ 350, 220 });
-		ImGui::BeginChild("scr", { 200,200 });
-
-		ImGui::SetWindowFontScale(5);
-		ImGui::Text("%d:%d", PingPong::scoreboard[0], PingPong::scoreboard[1]);
-		ImGui::SetWindowFontScale(1);
-		if (PingPong::pause) ImGui::Text("   Press Enter");
-		ImGui::EndChild();
-
-		//ball
-		ImGui::PushStyleColor(ImGuiCol_ChildBg, { 0.6,0.9,0.6,1 });
-		ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 100);
-		ImGui::SetCursorPos(PingPong::ballpos);
-		ImGui::BeginChild("o", { 20,20 }, true);
-		ImGui::EndChild();
 		ImGui::PopStyleVar();
-		ImGui::PopStyleColor();
-
-		// Network Images			
-		ImGui::SetCursorPosX(820);
-		ImGui::SetCursorPosY(30);
-		ImGui::Text("Left Plank's NN");
-		ImGui::SetCursorPosX(820);
-		ImGui::Checkbox("Learn", &PingPong::nn1Learn);        
-		ImGui::SameLine();
-        ImGui::Button("Reset");
-        ImGui::SetCursorPosX(820);
-		ImGui::Image((ImTextureID)PingPong::N1->inputLayer->NeuronsTex, { 100,20 });
-		PingPong::L = PingPong::N1->inputLayer->next;
-		for (int i = 1; i < PingPong::N1->no_layers; i++)
-		{
-			ImGui::SetCursorPosX(820);
-			ImGui::Image((ImTextureID)PingPong::L->WeightsTex, { 100,20 });
-			ImGui::SetCursorPosX(820);
-			ImGui::Image((ImTextureID)PingPong::L->NeuronsTex, { 100,20 });
-			PingPong::L = PingPong::L->next;
-		}
-
-
-		ImGui::SetCursorPosX(820);
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 30);
-		ImGui::Text("Right Plank's NN");
-		ImGui::SetCursorPosX(820);
-		ImGui::Checkbox("Learn ", &PingPong::nn2Learn);
-        ImGui::SameLine();
-        ImGui::Button("Reset");
-		ImGui::SetCursorPosX(820);
-		ImGui::Image((ImTextureID)PingPong::N2->inputLayer->NeuronsTex, { 100,20 });
-		PingPong::L = PingPong::N2->inputLayer->next;
-		for (int i = 1; i < PingPong::N2->no_layers; i++)
-		{
-			ImGui::SetCursorPosX(820);
-			ImGui::Image((ImTextureID)PingPong::L->WeightsTex, { 100,20 });
-			ImGui::SetCursorPosX(820);
-			ImGui::Image((ImTextureID)PingPong::L->NeuronsTex, { 100,20 });
-			PingPong::L = PingPong::L->next;
-		}
-
-		ImGui::PopStyleVar();
+	}
 }
