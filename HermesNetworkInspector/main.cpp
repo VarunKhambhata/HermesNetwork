@@ -463,7 +463,6 @@ int main() {
 
 		DrawPingPong();	
 		DrawLogicGateTrainer();
-		ImGui::ShowDemoWindow();
 		
 		ImGui::EndCleanWindow(window);
 	}

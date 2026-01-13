@@ -211,7 +211,6 @@ namespace HermesNetwork
 
         "void main()                                                                     \n"
         "{                                                                               \n"
-        "   vec4 neuronData = imageLoad(img_output, ivec2(gl_GlobalInvocationID.xy)); \n"
         "   weight_start = int(gl_GlobalInvocationID.x) * (PreviousLayer_size + 1);      \n"
         "   bias_loc = weight_start + PreviousLayer_size;                                \n"
         "   val = 0;                                                                     \n"
@@ -227,9 +226,7 @@ namespace HermesNetwork
         "   fetch = imageLoad(LayerWeight, ivec2(bias_loc,0));                           \n"
         "   Rval += fetch.r;                                                             \n"
         "   Rval = Activate(Rval);                                                       \n"
-        "   neuronData.r = Rval; neuronData.a = 1.0;                                     \n"
-        "   imageStore(img_output, ivec2(gl_GlobalInvocationID.xy ), neuronData);        \n"
-        // "   imageStore(img_output, ivec2(gl_GlobalInvocationID.xy ), vec4(Rval,0,0,1));  \n"        
+        "   imageStore(img_output, ivec2(gl_GlobalInvocationID.xy ), vec4(Rval,0,0,1));  \n"        
         "}                                                                               \0"        
         ;
 
